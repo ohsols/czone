@@ -1,0 +1,50 @@
+
+import React from 'react';
+import { X, GitCommit, Calendar } from 'lucide-react';
+import { motion } from 'framer-motion';
+
+interface UpdateLogProps {
+  onClose: () => void;
+}
+
+const UPDATES = [];
+
+const UpdateLog: React.FC<UpdateLogProps> = ({ onClose }) => {
+  return (
+    <div className="w-80 max-h-[400px] flex flex-col bg-[#0a0a0a] text-white">
+      <div className="p-4 border-b border-[#1c1c1f] flex items-center justify-between sticky top-0 bg-[#0a0a0a] z-10">
+        <h3 className="font-black uppercase italic tracking-tighter text-lg flex items-center gap-2">
+          <GitCommit size={16} className="text-[#ff2644]" />
+          Update Log
+        </h3>
+        <button onClick={onClose} className="text-[#52525b] hover:text-white transition-colors">
+          <X size={16} />
+        </button>
+      </div>
+      
+      <div className="overflow-y-auto custom-scrollbar p-4 space-y-6">
+        {UPDATES.map((update, idx) => (
+          <div key={idx} className="relative pl-4 border-l border-[#1c1c1f]">
+            <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-[#1c1c1f] border border-[#52525b]"></div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[#ff2644] font-bold text-xs bg-[#ff2644]/10 px-2 py-0.5 rounded-full border border-[#ff2644]/20">v{update.version}</span>
+              <span className="text-[10px] text-[#52525b] font-mono flex items-center gap-1">
+                <Calendar size={10} />
+                {update.date}
+              </span>
+            </div>
+            <ul className="space-y-1">
+              {update.changes.map((change, cIdx) => (
+                <li key={cIdx} className="text-xs text-[#d4d4d8] leading-relaxed">
+                  • {change}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default UpdateLog;

@@ -1,0 +1,145 @@
+import React, { useState } from 'react';
+import { motion } from 'framer-motion';
+import { Search, Globe, LayoutGrid, Gamepad2, Shield } from 'lucide-react';
+import { Category } from '../types';
+
+interface HomeProps {
+  onNavigate: (category: Category) => void;
+  onSearch: (query: string) => void;
+}
+
+const Home: React.FC<HomeProps> = ({ onNavigate, onSearch }) => {
+  const [query, setQuery] = useState('');
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (query.trim()) {
+      onSearch(query);
+      onNavigate('browser');
+    }
+  };
+
+  const sections = [
+    {
+      title: "Welcome to Krypton!",
+      desc: "Browse the web freely. Let's show you around.",
+      icon: <Globe className="text-[#ff2644]" size={32} />,
+    },
+    {
+      title: "Search Anything",
+      desc: "Type a URL or search query into the address bar at the top.",
+      icon: <Search className="text-[#ff2644]" size={32} />,
+    },
+    {
+      title: "Tabs",
+      desc: "Open tabs using the + button at the top.",
+      icon: <LayoutGrid className="text-[#ff2644]" size={32} />,
+    },
+    {
+      title: "Bookmarks",
+      desc: "Click the star icon at the top to bookmark a page.",
+      icon: <Shield className="text-[#ff2644]" size={32} />,
+    },
+    {
+      title: "Offline Mode",
+      desc: "Use the site online and play games at least once when online to use the site offline.",
+      icon: <Gamepad2 className="text-[#ff2644]" size={32} />,
+    },
+    {
+      title: "Tab Cloaking",
+      desc: "In the settings, click 'Cloak' to disguise the tab into an about:blank page!",
+      icon: <Shield className="text-[#ff2644]" size={32} />,
+    }
+  ];
+
+  return (
+    <div className="max-w-5xl mx-auto py-12 px-8 space-y-24">
+      <div className="text-center space-y-8">
+        <motion.h1 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-8xl md:text-9xl font-display uppercase tracking-tighter leading-none"
+        >
+          KRYPT<span className="text-[#ff2644]">ON</span>
+        </motion.h1>
+        
+        <motion.form 
+          onSubmit={handleSearch}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="max-w-2xl mx-auto pt-8"
+        >
+          <div className="relative">
+            <input 
+              type="text" 
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search Anything..."
+              className="w-full bg-zinc-900/50 border border-white/10 rounded-[2rem] py-6 px-8 pl-16 text-white text-lg focus:outline-none focus:ring-2 focus:ring-[#ff2644]/50 transition-all placeholder:text-zinc-600"
+            />
+            <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-500 w-6 h-6" />
+          </div>
+        </motion.form>
+
+        <motion.p 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2 }}
+          className="text-zinc-500 text-sm font-medium tracking-[0.3em] uppercase pt-4"
+        >
+          Browse without boundaries
+        </motion.p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {sections.map((s, i) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ delay: i * 0.1 }}
+            className="p-10 bg-zinc-900/30 border border-white/5 rounded-[2.5rem] space-y-6 hover:border-[#ff2644]/30 transition-all group"
+          >
+            <div className="w-16 h-16 bg-black rounded-2xl flex items-center justify-center border border-white/5 group-hover:scale-110 transition-transform">
+              {s.icon}
+            </div>
+            <h3 className="text-2xl font-display uppercase tracking-tight text-white">{s.title}</h3>
+            <p className="text-zinc-500 font-medium leading-relaxed">{s.desc}</p>
+          </motion.div>
+        ))}
+      </div>
+
+      <div className="pt-20 text-center space-y-12">
+        <div className="space-y-4">
+          <h2 className="text-4xl font-display uppercase tracking-tight text-white italic">Our <span className="text-[#ff2644]">Partners</span></h2>
+          <p className="text-zinc-500 font-medium">Trusted allies in the decentralized web.</p>
+        </div>
+        
+        <div className="flex flex-wrap justify-center gap-8">
+          {[
+            { name: "Helium", url: "https://sites.google.com/view/a7b9c1d3e5f2g4h6i8j0k9l1m3n5o2" },
+            { name: "カービィアーケード", url: "https://sites.google.com/view/fus3-bomb/page" },
+            { name: "ZGC", url: "https://zgcv2.netlify.app" }
+          ].map((p, i) => (
+            <a 
+              key={i} 
+              href={p.url} 
+              target="_blank" 
+              className="px-8 py-4 bg-zinc-900/30 border border-white/5 rounded-2xl text-zinc-400 font-black uppercase tracking-widest text-[10px] hover:border-[#ff2644]/30 hover:text-white transition-all"
+            >
+              {p.name}
+            </a>
+          ))}
+        </div>
+
+        <p className="text-zinc-600 text-[10px] font-black uppercase tracking-[0.5em] pt-20">
+          Secure Archive Access Protocol v2.4.0
+        </p>
+      </div>
+    </div>
+  );
+};
+
+export default Home;
