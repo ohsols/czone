@@ -1,8 +1,8 @@
 import { Movie } from './types';
 
 export const MOVIES: Movie[] = [
-    {
-        title: "Deadpool and Wolverine",
+            {
+                title: "Deadpool and Wolverine",
                 imageUrl: "https://cdn.jsdelivr.net/gh/dino-cmxy/Chillkirbcentrall@main/dp3_1sht_digital_srgb_ka_swords_v5_resized.jpg",
                 link: "https://drive.google.com/file/d/1B_eiKUt7N5OxyUN9c37LG0pxcErP4yJ6/view",
                 description: "Mercenary Deadpool teams with Wolverine for action-packed adventure.",
@@ -144,7 +144,7 @@ export const MOVIES: Movie[] = [
             {
                 title: "Five Nights At Freddy's 2",
                 imageUrl: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSf-RYGDp-9XprIb9yX1zLUOy6kpm8iUOuHbw&s",
-                link: "https://drive.google.com/file/d/1nTRYH1tf1MoNwxxNUtcTg4VH0njDii7M/view?usp=sharing",
+                link: "https://drive.google.com/file/d/16qbI4SsI7sgv2osM_r6bGkNoj1gtjX6T/view?usp=sharing",
                 description: "One year has passed since the supernatural nightmare at Freddy Fazbear's Pizza. Former security guard Mike has kept the truth from his 11-year-old sister, Abby, concerning the fate of her animatronic friends.",
                 year: "2025"
             },
@@ -878,7 +878,7 @@ export const MOVIES: Movie[] = [
             },
             {
                 title: "Ant-Man and the Wasp: Quantumania",
-                imageUrl: "https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcTFb_n_EedTIqd3fZhsA2EpMUEF710vglYt4RYNd_FXEre3NxMw",
+                imageUrl: "https://www.dropbox.com/scl/fi/zz0449lgrqllpbf0j2e52/Blue_Beetle_-film-_poster.jpg?rlkey=gnk91admj7ixeizr90iytu6es&st=r2rx3fhc&dl=1",
                 link: "https://drive.google.com/file/d/1AW3Zm8256tzZ-37lmgYmIGse4knu8IdA/view",
                 description: "Scott Lang and Hope Van Dyne in Quantum Realm.",
                 year: "2023"
@@ -1043,6 +1043,160 @@ export const MOVIES: Movie[] = [
                 link: "https://drive.google.com/file/d/1agaUOrpagc2qgxTBQirz086vP1RlFF6G/view?usp=sharing",
                 description: "Cat must prove it can be hero in Yo-kai Academy.",
                 year: "2019"
+            },
+            {
+                title: "Pokémon: The First Movie",
+                imageUrl: "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcSRKFveu_G8LP_ICAk9uQPbL7Iii4WQ2kKKh7gd8vFsWLuCNf_w",
+                link: "https://drive.google.com/file/d/1_5PiiaO_lwVMh3_4Px-TU0modiH11V8r/view",
+                description: "Ash and his friends travel to New Island to battle Mewtwo, a bio-engineered Pokémon.",
+                year: "1998"
+            },
+            {
+                title: "Pokémon The Movie 2000",
+                imageUrl: "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcSNCmwY5mfW7txHXn3zrJQ-EjPuJjG6P0EZnfx4igSAv12w8nKO",
+                link: "https://drive.google.com/file/d/1AoToS8Ettg_wVvjDxQz3BiWLu-ewi6RG/view?usp=drive_link",
+                description: "Ash must gather the three elemental spheres to stop a collector from capturing Lugia.",
+                year: "1999"
+            },
+            {
+                title: "Pokémon 3: The Movie",
+                imageUrl: "https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcS-hyaVqMdO_5e6lFDPkOGRkqfiaMZlc4a_u7lSDDjJrUFcUtUa",
+                link: "https://drive.google.com/file/d/13fTi-G4RAShFYX_UK0GMP4byLOjL8Tzf/view?usp=drive_link",
+                description: "Ash and his friends must save his mother from the legendary Pokémon Entei.",
+                year: "2000"
+            },
+            {
+                title: "Pokémon 4Ever",
+                imageUrl: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRVqUo6SsvWgaCEeyR5jodW14zA_kUTi22ckhnJMJVnxhu1GmY_",
+                link: "https://drive.google.com/file/d/1BE--u5k8B7YLOuAhwm-HV2kjy2cchfSC/view?usp=drive_link",
+                description: "Ash and his friends meet Celebi, a time-traveling Pokémon, and must protect it from a poacher.",
+                year: "2001"
+            },
+            {
+                title: "Pokémon Heroes",
+                imageUrl: "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcQ7Wz2CWUTpvQ81B6jsVHBQnqiJaTn7yH-U-VJ5fikxOtbUxioV",
+                link: "https://drive.google.com/file/d/1W98n3aU8Ad4PDHe9Z_1DzxvWy3i2jSR4/view?usp=drive_link",
+                description: "Ash and his friends visit Alto Mare and meet the legendary Pokémon Latias and Latios.",
+                year: "2002"
+            },
+            {
+                title: "Pokémon: Jirachi, Wish Maker",
+                imageUrl: "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcQ91V3e-jbDXZlQB1JORh10zFREd2SBz74HicRx8SY0ttZCQ2jW",
+                link: "https://drive.google.com/file/d/1yrnL1o47TUJrs37KXj6XwdwuJMwig5Yg/view?usp=drive_link",
+                description: "Ash and his friends must protect the legendary Pokémon Jirachi from a former Team Magma member.",
+                year: "2003"
+            },
+            {
+                title: "Pokémon: Destiny Deoxys",
+                imageUrl: "https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcR-KnfuSU0nF--0EJmfncgTVcBZ0r48rPGyF-iOgAVAxaD1OInr",
+                link: "https://drive.google.com/file/d/10n-r278IQVFulwHRVZSoZ8QHYTLpR0T5/view?usp=drive_link",
+                description: "Ash and his friends visit LaRousse City and get caught in a battle between Rayquaza and Deoxys.",
+                year: "2004"
+            },
+            {
+                title: "Pokémon: Lucario and the Mystery of Mew",
+                imageUrl: "https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcQRRB1Gvm7navCKUy-Eo3KGlaacFGQh6C0cTMvzuYEX8vGRNBQq",
+                link: "https://drive.google.com/file/d/1DGWSLLeneKVXA6F9U9J7AbzA7iGpXywA/view?usp=drive_link",
+                description: "Ash and his friends help Lucario uncover the truth about his past and save the Tree of Beginning.",
+                year: "2005"
+            },
+            {
+                title: "Pokémon: Giratina & the Sky Warrior",
+                imageUrl: "https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcRX4US1Iu1LIW7wExc3Pns11rqOUOd_KDeuMjS7N2g4ruvnyEaA",
+                link: "https://drive.google.com/file/d/1xvRPznwbkzDZMSHDFr-R4JLpvH45jR9g/view?usp=drive_link",
+                description: "Ash and his friends must help Shaymin return to the Gracidea flower patch while avoiding Giratina.",
+                year: "2008"
+            },
+            {
+                title: "Pokémon: Black - Victini and Reshiram",
+                imageUrl: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcR-y16vtXqscUG088gQZKoMZdfUkzfU08xcag_thVHGizOYz_7jSNfsxhuW7F-nzqAjt2lk&s",
+                link: "https://drive.google.com/file/d/1ONsADI2D1QtmyFpyW4zIo8zFDBrO4OL2/view?usp=drive_link",
+                description: "Ash and his friends meet Victini and must stop a misguided descendant of the People of the Vale.",
+                year: "2011"
+            },
+            {
+                title: "Pokémon: White - Victini and Zekrom",
+                imageUrl: "https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcSKhDT38lbM3gnHkR7MLc7O1OmZHfXTLemDKT1NcJhoHJAAe20f",
+                link: "https://drive.google.com/file/d/1p2abgfDqQ-5eDtoKU0A_TCApI0SIaPQ6/view?usp=drive_link",
+                description: "Ash and his friends meet Victini and must stop a misguided descendant of the People of the Vale.",
+                year: "2011"
+            },
+            {
+                title: "Pokémon the Movie: Diancie and the Cocoon of Destruction",
+                imageUrl: "https://m.media-amazon.com/images/M/MV5BMTY2OTc4NTU1OF5BMl5BanBnXkFtZTcwMTg0MzI1MQ@@._V1_FMjpg_UX1000_.jpg",
+                link: "#",
+                description: "Ash and his friends help Diancie find Xerneas to restore the Heart Diamond.",
+                year: "2014"
+            },
+            {
+                title: "Pokémon: Hoopa and the Clash of Ages",
+                imageUrl: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSlpO-wkuLcLQJn-ervUkKJlLoUs1e6YMEyGpWcih8NYNQ9ZlexIuMu_F1KwiKLqJLw9uK1wg&s",
+                link: "https://drive.google.com/file/d/1aH2Ivp60TpCGVc8RcXpf4-ywN4GICKEa/view?usp=drive_link",
+                description: "Ash and his friends meet Hoopa and must stop its dark power from destroying Dahara City.",
+                year: "2015"
+            },
+            {
+                title: "Pokémon the Movie: Volcanion and the Mechanical Marvel",
+                imageUrl: "https://encrypted-tbn2.gstatic.com/images?q=tbn:ANd9GcQIZubOB9epl6oNZp5U2VRneraeCVj6QWkdFlNLgmd_LBnbHUX6",
+                link: "https://drive.google.com/file/d/1LtS0Qupkv4L3aYFoPXSdEgYiL0VF0FIg/view?usp=drive_link",
+                description: "Ash and his friends team up with Volcanion to rescue Magearna from a corrupt minister.",
+                year: "2016"
+            },
+            {
+                title: "Pokémon the Movie: I Choose You!",
+                imageUrl: "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcSOv4wBotNhaeFIM-AB_F1zitmaIKR0ZH6QIN5yZmdt2G2K_jmP",
+                link: "https://drive.google.com/file/d/1UKCK7zdXb374ZiDB-79zubOVtBU-8Q2D/view?usp=drive_link",
+                description: "A retelling of Ash and Pikachu's early adventures as they search for the legendary Pokémon Ho-Oh.",
+                year: "2017"
+            },
+            {
+                title: "Pokémon the Movie: The Power of Us",
+                imageUrl: "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcQcMOzczb-ZXfONC6bYLiiOqoPP82zGG3tkGnbqaI-Z8Mb_E7o_",
+                link: "https://drive.google.com/file/d/1H6OdAhiap0D_T5ayTNy_Z8DZTHhU8-lw/view?usp=drive_link",
+                description: "Ash and his friends visit Fula City and must work together to save it from a series of disasters.",
+                year: "2018"
+            },
+            {
+                title: "Pokémon: Mewtwo Strikes Back Evolution",
+                imageUrl: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTlDmHizn_nTe3EtICFKQglF-b6-xOkKfWsr4o-lFB_RYaKi0ZzRs_efGJl6-lQOzcaJtFR&s",
+                link: "https://drive.google.com/file/d/17faKYkcJ9wTp2ZWXx9w-s0oC8603ukZ_/view?usp=drive_link",
+                description: "A CGI remake of the first Pokémon movie.",
+                year: "2019"
+            },
+            {
+                title: "Pokémon Detective Pikachu",
+                imageUrl: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ0NbN6N_oHzYl89aaTSXa2UYM12GxbjXVRurQmCpSHmz8EbhOs",
+                link: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTlDmHizn_nTe3EtICFKQglF-b6-xOkKfWsr4o-lFB_RYaKi0ZzRs_efGJl6-lQOzcaJtFR&s",
+                description: "A young man teams up with a talking Pikachu to solve the mystery of his father's disappearance.",
+                year: "2019"
+            },
+            {
+                title: "Pokémon: Mewtwo Returns",
+                imageUrl: "https://m.media-amazon.com/images/M/MV5BMTM4NTAxMTQ4OV5BMl5BanBnXkFtZTYwNTM2MjI5._V1_FMjpg_UX1000_.jpg",
+                link: "https://drive.google.com/file/d/1Vbux2rKqR7SsUGDYYFZpKbTKxoa31r9U/view?usp=drive_link",
+                description: "Ash and his friends reunite with Mewtwo and must protect it from Giovanni.",
+                year: "2000"
+            },
+            {
+                title: "Pikachu's Vacation",
+                imageUrl: "https://m.media-amazon.com/images/I/51EwFIpU0xL._AC_UF1000,1000_QL80_.jpg",
+                link: "https://drive.google.com/file/d/1M2E_O3596UqyDTj4V9fvDg413XiaKG42/view?usp=drive_link",
+                description: "Pikachu and friends spend a day at a Pokémon theme park.",
+                year: "1998"
+            },
+            {
+                title: "Pikachu's Winter Vacation",
+                imageUrl: "https://m.media-amazon.com/images/I/51YGJTDAQYL._AC_UF894,1000_QL80_.jpg",
+                link: "https://drive.google.com/file/d/1PKy2nrxT0GeGPzEq8ikssjjFR777uydi/view?usp=drive_link",
+                description: "Pikachu and friends enjoy winter activities.",
+                year: "1999"
+            },
+            {
+                title: "Pikachu's Hide and Seek",
+                imageUrl: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSBN5JQNupnYP8WH8h_dAwJIXDTiDOnav8QKQ&s",
+                link: "https://drive.google.com/file/d/1lnLmi1fgYewESjeRPB4TxPOyVzpBoEEF/view?usp=drive_link",
+                description: "Pikachu and friends play hide and seek in a large mansion.",
+                year: "2001"
             },
             {
                 title: "Demon Slayer: Kimetsu no Yaiba – The Movie: Infinity Castle",
