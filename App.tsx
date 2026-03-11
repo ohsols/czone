@@ -372,7 +372,7 @@ const App: React.FC = () => {
                             <Activity size={48} className="text-[#ff2644]" />
                           </div>
                           <h1 className="text-5xl md:text-8xl font-black uppercase italic tracking-tighter text-white mb-8">Donate</h1>
-                          <p className="text-[#a1a1aa] text-xl max-w-2xl mx-auto mb-12 font-medium">Slide Money Fr</p>
+                          <p className="text-[#a1a1aa] text-xl max-w-2xl mx-auto mb-12 font-medium">Click Which Ever Donation App U Want To Donate On</p>
                           
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
                             <a href="https://cash.app/$7yari" target="_blank" rel="noopener noreferrer" className="bg-black border border-[#1c1c1f] p-8 rounded-3xl hover:border-[#00d632] hover:scale-105 transition-all duration-300 group flex flex-col items-center text-center">
