@@ -26,6 +26,12 @@ body {
   selection-color: #000000;
 }
 
+@media (hover: hover) and (pointer: fine) {
+  * {
+    cursor: none !important;
+  }
+}
+
 /* Custom Scrollbar - Monochrome Style */
 ::-webkit-scrollbar {
   width: 4px;
