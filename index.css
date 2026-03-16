@@ -89,7 +89,7 @@ body {
 
 @media (hover: hover) and (pointer: fine) {
   * {
-    cursor: none !important;
+    cursor: url('https://1key.lol/cursor-concept-3-free/cursor/dark/arrow.cur'), auto !important;
   }
 }
 

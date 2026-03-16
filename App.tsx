@@ -6,7 +6,6 @@ import Settings from './components/Settings';
 import MusicPlayer from './components/MusicPlayer';
 import UpdateLog from './components/UpdateLog';
 import DateTimeWidget from './components/DateTimeWidget';
-import CustomCursor from './components/CustomCursor';
 import { Category, LibraryItem, StaffMember } from './types';
 import { MOVIES_DATA, ANIME_DATA, MANGA_DATA, TV_DATA, STAFF_DATA, PARTNERS_DATA, PROXIES_DATA } from './constants';
 import { getWikiIntelligence } from './services/gemini';
@@ -129,7 +128,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-bg text-text-primary">
-      <CustomCursor />
       <div id="app" className="fixed inset-0 flex flex-row overflow-hidden bg-bg text-text-primary">
         {/* Background glows */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
