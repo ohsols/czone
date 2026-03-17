@@ -1201,7 +1201,7 @@ export const MOVIES: Movie[] = [
             {
                 title: "Demon Slayer: Kimetsu no Yaiba – The Movie: Infinity Castle",
                 imageUrl: "https://upload.wikimedia.org/wikipedia/en/thumb/a/ae/Kimetsu_No_Yaiba_Mugen_Jyo-hen_theatrical_poster.jpg/250px-Kimetsu_No_Yaiba_Mugen_Jyo-hen_theatrical_poster.jpg",
-                link: "https://drive.google.com/file/d/1LQ1L8wT1DV2YiCcTsFgOc9aoHGBMaInr/view?usp=sharing",
+                link: "https://drive.google.com/file/d/1S1kdVMeDBk4_TanzZQwH372XRbrwT0KY/view",
                 description: "Tanjiro enters Infinity Castle for final battle.",
                 year: "2024"
             },
