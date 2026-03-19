@@ -53,6 +53,8 @@ export interface TVShow {
   imageUrl: string;
   link?: string;
   links?: { part: string; url: string }[];
+  description?: string;
+  year?: string;
 }
 
 export interface StaffMember {

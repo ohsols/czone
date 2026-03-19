@@ -2,7 +2,7 @@
 import { LibraryItem, StaffMember, PartnerItem, ProxyItem } from './types';
 import { MANGA } from './mangaData';
 import { MOVIES } from './movieData';
-import { NEW_TV_DATA } from './tvData';
+import { TV_SHOWS } from './tvData';
 import { ANIME } from './animeData';
 
 const getSearchLink = (title: string) => `https://drive.google.com/drive/search?q=${encodeURIComponent(title)}`;
@@ -790,10 +790,13 @@ export const ANIME_DATA: LibraryItem[] = ANIME.map(anime => ({
   genre: guessGenre(anime.title),
   rating: guessRating(anime.title)
 }));
-export const TV_DATA: LibraryItem[] = NEW_TV_DATA.map(tv => ({
-  ...tv,
-  genre: guessGenre(tv.t),
-  rating: guessRating(tv.t)
+export const TV_DATA: LibraryItem[] = TV_SHOWS.map(tv => ({
+  t: tv.title,
+  l: tv.link,
+  img: tv.imageUrl,
+  links: tv.links,
+  genre: guessGenre(tv.title),
+  rating: guessRating(tv.title)
 }));
 
 export const MANGA_DATA: LibraryItem[] = MANGA.map(manga => ({

@@ -42,6 +42,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeCategory, onSelect, logoUrl, on
     { id: 'manga' as Category, label: 'Mangas', icon: BookOpen },
     { id: 'music' as Category, label: 'Music', icon: Music },
     { id: 'proxies' as Category, label: 'Proxies', icon: Shield },
+    { id: 'partners' as Category, label: 'Partners', icon: Users },
   ];
 
   return (
