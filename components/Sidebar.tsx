@@ -48,12 +48,12 @@ const Sidebar: React.FC<SidebarProps> = ({ activeCategory, onSelect, logoUrl, on
   return (
     <motion.aside 
       initial={false}
-      animate={{ width: isHovered ? 160 : 80 }}
+      animate={{ height: isHovered ? 160 : 80 }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="bg-bg border-r border-white/5 flex flex-col items-center py-8 shrink-0 transition-all duration-300 z-[100] h-full relative"
+      className="bg-bg border-b border-white/5 flex flex-row items-center px-8 shrink-0 transition-all duration-300 z-[100] w-full relative"
     >
-      <div className="mb-12">
+      <div className="mr-12">
         <motion.div 
           whileHover={{ scale: 1.1 }}
           whileTap={{ scale: 0.9 }}
@@ -77,9 +77,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeCategory, onSelect, logoUrl, on
         </motion.div>
       </div>
       
-      <div className="flex-1 w-full flex flex-col items-center gap-8 overflow-y-auto custom-scrollbar no-scrollbar">
+      <div className="flex-1 h-full flex flex-row items-center gap-8 overflow-x-auto custom-scrollbar no-scrollbar">
         {/* Data/Navigation Section */}
-        <div className="flex flex-col items-center gap-6 w-full">
+        <div className="flex flex-row items-center gap-6 w-full">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeCategory === item.id;
@@ -87,7 +87,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeCategory, onSelect, logoUrl, on
               <button
                 key={item.id}
                 onClick={() => onSelect(item.id)}
-                className={`flex flex-col items-center gap-1.5 transition-all duration-300 group ${
+                className={`flex flex-row items-center gap-2 transition-all duration-300 group ${
                   isActive ? 'text-accent' : 'text-text-secondary hover:text-white'
                 }`}
               >
@@ -99,9 +99,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeCategory, onSelect, logoUrl, on
                 <AnimatePresence>
                   {isHovered && (
                     <motion.span 
-                      initial={{ opacity: 0, y: -5 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -5 }}
+                      initial={{ opacity: 0, x: -5 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -5 }}
                       className="text-[10px] font-black uppercase tracking-[0.2em] italic"
                     >
                       {t(item.label)}

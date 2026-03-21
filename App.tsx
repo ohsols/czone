@@ -4,13 +4,14 @@ import Sidebar from './components/Sidebar';
 import LibrarySection from './components/LibrarySection';
 import Settings from './components/Settings';
 import MusicPlayer from './components/MusicPlayer';
+import Partners from './components/Partners';
 import UpdateLog from './components/UpdateLog';
 import DateTimeWidget from './components/DateTimeWidget';
 import { Category, LibraryItem, StaffMember } from './types';
 import { MOVIES_DATA, ANIME_DATA, MANGA_DATA, TV_DATA, STAFF_DATA, PARTNERS_DATA, PROXIES_DATA } from './constants';
 import { getWikiIntelligence } from './services/gemini';
 import { useLanguage } from './context/LanguageContext';
-import { Search, X, Film, Sparkles, BookOpen, Tv, SearchX, PlayCircle, Star, Globe, Users, ExternalLink, ShieldAlert, Zap, MessageSquare, Activity, Loader2, Book, AlertTriangle, Settings as SettingsIcon, GitCommit, ChevronDown } from 'lucide-react';
+import { Search, X, Film, Sparkles, BookOpen, Tv, SearchX, PlayCircle, Star, Globe, Users, ExternalLink, ShieldAlert, Zap, MessageSquare, Activity, Loader2, Book, AlertTriangle, Settings as SettingsIcon, GitCommit, ChevronDown, LayoutGrid } from 'lucide-react';
 
 const DEFAULT_LOGO = "https://lh7-rt.googleusercontent.com/sitesz/AClOY7psM7n5cC2oRAQVLVss3LsgYFKWwE-KzTjGQvDYtnnp1f1j-Szl1OH6r1pZTXpsw0t_1es0N4P9E2cBl4Oqs-lOwNJdAt3H5CiGxGZKfBTzaYq_ybiI1qd2dWXWu_GRWMqLDD_3BL9tkNhJBNJhjBuuQWyvP1B19h6v0fblyHBwfxs-94c7?key=IannGxLsV9P5UfJ0NHPqqQ";
 
@@ -105,6 +106,8 @@ const App: React.FC = () => {
     setIsWikiLoading(false);
   };
 
+  const [isSidebarVisible, setIsSidebarVisible] = useState(true);
+
   const [searchCategory, setSearchCategory] = useState<'all' | 'movies' | 'tv' | 'anime' | 'manga'>('all');
 
   const searchResults = useMemo(() => {
@@ -142,19 +145,31 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-bg text-text-primary">
-      <div id="app" className="fixed inset-0 flex flex-row overflow-hidden bg-bg text-text-primary">
+      <div id="app" className="fixed inset-0 flex flex-col overflow-hidden bg-bg text-text-primary">
         {/* Background glows */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
           <div className="absolute -top-40 -right-40 w-[700px] h-[700px] rounded-full opacity-60" style={{ background: 'var(--accent-glow-dim)', filter: 'blur(160px)', transform: 'translateZ(0)' }}></div>
           <div className="absolute top-1/2 left-1/4 w-[500px] h-[500px] rounded-full opacity-30" style={{ background: 'rgba(37,99,235,0.05)', filter: 'blur(130px)', transform: 'translateZ(0)' }}></div>
         </div>
         
-        <Sidebar 
-          activeCategory={activeCategory} 
-          onSelect={(cat) => { setActiveCategory(cat); setSearchQuery(''); setIsSettingsOpen(false); }} 
-          logoUrl={customLogo} 
-          onLogoChange={handleUpdateLogo}
-        />
+        <div className="relative z-20 flex items-center justify-between p-4 bg-bg/80 backdrop-blur-md border-b border-white/5">
+            <button 
+                onClick={() => setIsSidebarVisible(!isSidebarVisible)}
+                className="p-2 rounded-xl bg-surface-hover border border-white/5 text-text-secondary hover:text-white"
+            >
+                {isSidebarVisible ? <X size={20} /> : <LayoutGrid size={20} />}
+            </button>
+            <div className="w-10"></div> {/* Spacer */}
+        </div>
+
+        {isSidebarVisible && (
+            <Sidebar 
+            activeCategory={activeCategory} 
+            onSelect={(cat) => { setActiveCategory(cat); setSearchQuery(''); setIsSettingsOpen(false); }} 
+            logoUrl={customLogo} 
+            onLogoChange={handleUpdateLogo}
+            />
+        )}
         
         <main className="flex-1 flex flex-col min-w-0 h-full relative z-10 overflow-auto custom-scrollbar">
           <header className="sticky top-0 z-40 border-b border-surface-hover p-4 md:p-6 flex justify-between items-center shrink-0 bg-bg/60 backdrop-blur-xl">
@@ -339,80 +354,7 @@ const App: React.FC = () => {
                       </motion.div>
                     )}
 
-                    {activeCategory === 'partners' && (
-                      <motion.div 
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="py-12"
-                      >
-                        <motion.h1 
-                          initial={{ opacity: 0, y: -20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="text-7xl md:text-9xl font-black mb-20 tracking-tighter italic uppercase text-white text-center leading-[0.8]"
-                        >
-                          {t('Partners')}
-                        </motion.h1>
-                        <motion.div 
-                          initial="hidden"
-                          animate="show"
-                          variants={{
-                            hidden: { opacity: 0 },
-                            show: {
-                              opacity: 1,
-                              transition: { staggerChildren: 0.05 }
-                            }
-                          }}
-                          className="grid grid-cols-1 md:grid-cols-2 gap-6"
-                        >
-                          {PARTNERS_DATA.map((p, idx) => (
-                            <motion.div 
-                              variants={{
-                                hidden: { opacity: 0, y: 10 },
-                                show: { opacity: 1, y: 0, transition: { duration: 0.2, ease: "easeOut" } }
-                              }}
-                              key={idx} 
-                              className="relative overflow-hidden bg-bg p-8 rounded-[32px] border border-surface-hover flex flex-col gap-4 group transition-all duration-500 hover:border-accent/40"
-                            >
-                              {p.banner && (
-                                <div className="absolute inset-0">
-                                  <img src={p.banner} className="w-full h-full object-cover opacity-60 group-hover:opacity-80 group-hover:scale-105 transition-all duration-700" />
-                                  <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/40 to-transparent"></div>
-                                </div>
-                              )}
-                              <div className="relative z-10 flex items-center justify-between w-full">
-                                <div className="flex items-center gap-4">
-                                  <div className="w-12 h-12 bg-bg/80 backdrop-blur-md rounded-xl text-accent border border-white/5 flex items-center justify-center overflow-hidden">
-                                    {p.avatar ? <img src={p.avatar} className="w-full h-full object-cover" /> : <Users size={24} />}
-                                  </div>
-                                  <div>
-                                    <h3 className="text-xl font-black italic uppercase text-white group-hover:text-accent transition-colors"><TranslatedText text={p.name} /></h3>
-                                    <p className="text-text-muted text-[9px] font-bold uppercase tracking-[0.2em]">OPERATED BY <TranslatedText text={p.owner} /></p>
-                                  </div>
-                                </div>
-                                <div className="relative">
-                                  {p.urls ? (
-                                    <div className="group/menu relative">
-                                      <button className="text-text-secondary hover:text-accent p-2 bg-bg/50 rounded-lg border border-white/5 text-[10px] font-bold uppercase tracking-widest flex items-center gap-1">
-                                        Links <ChevronDown size={12} />
-                                      </button>
-                                      <div className="absolute right-0 top-full mt-2 w-40 bg-bg border border-surface-hover rounded-xl shadow-xl p-2 z-20 opacity-0 group-hover/menu:opacity-100 transition-opacity pointer-events-none group-hover/menu:pointer-events-auto">
-                                        {p.urls.map((u, i) => (
-                                          <a key={i} href={u.url} target="_blank" rel="noopener noreferrer" className="block text-text-secondary hover:text-accent p-2 hover:bg-surface-hover rounded-lg text-[10px] font-bold uppercase tracking-widest">
-                                            {u.name}
-                                          </a>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    p.url && <a href={p.url} target="_blank" rel="noopener noreferrer" className="text-text-secondary hover:text-accent p-2"><ExternalLink size={20} /></a>
-                                  )}
-                                </div>
-                              </div>
-                            </motion.div>
-                          ))}
-                        </motion.div>
-                      </motion.div>
-                    )}
+                    {activeCategory === 'partners' && <Partners />}
 
                     {activeCategory === 'support' && (
                       <motion.div 
