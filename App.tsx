@@ -9,7 +9,6 @@ import UpdateLog from './components/UpdateLog';
 import DateTimeWidget from './components/DateTimeWidget';
 import { Category, LibraryItem, StaffMember } from './types';
 import { MOVIES_DATA, ANIME_DATA, MANGA_DATA, TV_DATA, STAFF_DATA, PARTNERS_DATA, PROXIES_DATA } from './constants';
-import { getWikiIntelligence } from './services/gemini';
 import { useLanguage } from './context/LanguageContext';
 import { Search, X, Film, Sparkles, BookOpen, Tv, SearchX, PlayCircle, Star, Globe, Users, ExternalLink, ShieldAlert, Zap, MessageSquare, Activity, Loader2, Book, AlertTriangle, Settings as SettingsIcon, GitCommit, ChevronDown, LayoutGrid } from 'lucide-react';
 
@@ -56,8 +55,6 @@ const App: React.FC = () => {
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isUpdateLogOpen, setIsUpdateLogOpen] = useState(false);
-  const [wikiData, setWikiData] = useState<{text: string, sources: string[]} | null>(null);
-  const [isWikiLoading, setIsWikiLoading] = useState(false);
   const { t } = useLanguage();
 
   useEffect(() => {
@@ -89,21 +86,12 @@ const App: React.FC = () => {
 
   const handleOpenDetails = (item: LibraryItem, category: string) => {
     setSelectedItem({ item, category, showPlayer: false });
-    setWikiData(null);
   };
 
   const handleStaffClick = (staff: StaffMember) => {
     if (staff.link) {
       setSelectedStaff(staff);
     }
-  };
-
-  const handleFetchWiki = async () => {
-    if (!selectedItem) return;
-    setIsWikiLoading(true);
-    const intelligence = await getWikiIntelligence(selectedItem.item.t);
-    setWikiData(intelligence);
-    setIsWikiLoading(false);
   };
 
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
@@ -569,41 +557,10 @@ const App: React.FC = () => {
                 ) : (
                   <>
                     <div className="mb-auto">
-                  <div className="flex items-center gap-4 mb-6"><span className="px-5 py-2 rounded-full bg-accent/10 border border-accent/30 text-accent text-[10px] font-black uppercase tracking-[0.25em] italic">{t('Record Sync Active')}</span></div>
-                  <h2 className="text-5xl md:text-7xl font-black italic uppercase tracking-tighter text-white leading-[0.85] mb-10"><TranslatedText text={selectedItem.item.t} /></h2>
-                  
-                  {wikiData ? (
-                    <motion.div 
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="space-y-6"
-                    >
-                      <p className="text-text-primary leading-relaxed text-lg font-medium border-l-2 border-accent pl-6 italic"><TranslatedText text={wikiData.text} /></p>
-                      <div className="flex flex-wrap gap-2 pt-4">
-                        {wikiData.sources.map((url, i) => (
-                          <a key={i} href={url} target="_blank" className="text-[10px] text-text-secondary hover:text-accent uppercase tracking-widest font-black flex items-center gap-1">{t('SOURCE')} {i+1} <ExternalLink size={10}/></a>
-                        ))}
-                      </div>
-                    </motion.div>
-                  ) : (
-                    <p className="text-text-primary leading-relaxed text-lg mb-12 font-medium">{t('Accessing')} <span className="text-white italic font-black">"<TranslatedText text={selectedItem.item.t} />"</span>. {t('Syncing through redundant peer nodes for maximum throughput.')}</p>
-                  )}
+                  <div className="flex items-center gap-4 mb-6"></div>                  <h2 className="text-5xl md:text-7xl font-black italic uppercase tracking-tighter text-white leading-[0.85] mb-10"><TranslatedText text={selectedItem.item.t} /></h2>
                 </div>
                 
-                <div className="flex flex-col gap-4 mt-8">
-                  {!wikiData && (
-                    <motion.button 
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={handleFetchWiki} 
-                      disabled={isWikiLoading}
-                      className="w-full bg-bg text-white py-6 rounded-[2rem] font-black flex items-center justify-center gap-4 text-[10px] tracking-[0.4em] uppercase italic border border-white/5 hover:bg-surface-active transition-all duration-300 disabled:opacity-50"
-                    >
-                      {isWikiLoading ? <Loader2 size={18} className="animate-spin text-accent"/> : <Book size={18} className="text-accent"/>} 
-                      {isWikiLoading ? t('DECRYPTING WIKI...') : t('FETCH WIKI INTELLIGENCE')}
-                    </motion.button>
-                  )}
-                  
+                <div className="flex flex-col gap-4 mt-8"> 
                   {selectedItem.category === 'movie' && (
                     <motion.button 
                       whileHover={{ scale: 1.02 }}
@@ -643,7 +600,7 @@ const App: React.FC = () => {
                       className={`w-full py-7 rounded-[2.5rem] font-black flex items-center justify-center gap-4 text-xs tracking-[0.4em] uppercase italic transition-all duration-500 shadow-2xl ${isSearchLink ? 'bg-surface-active text-text-muted hover:bg-surface-hover hover:text-white border border-white/10' : 'bg-accent text-white hover:bg-accent/90'}`}
                     >
                       {isSearchLink ? <Search size={24} /> : <PlayCircle size={24} />} 
-                      {isSearchLink ? t('SEARCH ARCHIVE') : t('INITIALIZE STREAM')}
+                      {isSearchLink ? t('SEARCH ARCHIVE') : `${t('Watch:')} ${selectedItem.item.t}`}
                     </motion.a>
                   )}
                   {isSearchLink && (
