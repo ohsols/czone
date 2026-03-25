@@ -197,6 +197,13 @@ export const ANIME: Anime[] = [
                 link: "https://drive.google.com/drive/folders/1BBQhmMmkPejoIOvEZF_-jcFOa62iF8KK?usp=share_link"
             },
             {
+                title: "Cyberpunk: Edgerunners",
+                imageUrl: "https://encrypted-tbn1.gstatic.com/images?q=tbn:ANd9GcTTJzu3zDbGM0ZQTwYwn14xPD_KPmamL-Y8XE5OK-6RBBuw7jqM",
+                description: "A street kid trying to survive in a technology and body modification-obsessed city of the future. Having everything to lose, he chooses to stay alive by becoming an edgerunner: a mercenary outlaw also known as a cyberpunk.",
+                year: "2022",
+                link: "https://drive.google.com/drive/folders/1q7Y8JBLsCyqVIvmq2Zi93tSPebobgPwA?usp=drive_link"
+            },
+            {
                 title: "Dandadan",
                 imageUrl: "https://i0.wp.com/aiptcomics.com/wp-content/uploads/2024/10/DAN-DA-DAN-Official-Key-Art-2x3-1-scaled.jpg?fit=724%2C1024&ssl=1",
                 links: [{
@@ -951,6 +958,13 @@ export const ANIME: Anime[] = [
                         url: "https://drive.google.com/drive/folders/1OFIN-v1Q6rKvwXdmptihw5EBgE6ixpV3?usp=sharing"
                     }
                 ]
+            },
+            {
+                title: "Yu-Gi-Oh!",
+                imageUrl: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTHRqlfrREFO0_0dVxNAVOQySJRpS_OE_hUU1jtUF6jqPTxpaFJSVWh6lzXK60AVSX5AkbI&s",
+                description: "A young boy named Yugi Mutou solves an ancient Egyptian puzzle and awakens a gambling alter-ego within his body that helps him solve conflicts using various games.",
+                year: "2000",
+                link: "https://drive.google.com/drive/folders/124TPsVnf6BvotwM3A-PdljjHw4b2wS87?usp=drive_link"
             },
             {
                 title: "Zom 100: Bucket List of the Dead",
