@@ -40,8 +40,14 @@ export const getEmulatorHtml = (game: Game) => {
         window.EJS_startOnLoaded = true;
         window.EJS_gameName = '${game.title.replace(/'/g, "\\'")}';
         window.EJS_color = '#2563eb';
+        window.EJS_AdUrl = '';
     </script>
     <script>
+    window.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            window.parent.postMessage({ type: 'EXIT_GAME' }, '*');
+        }
+    });
     (async function() {
         const scripts = [
             "emulator.js",

@@ -77,12 +77,24 @@ const App: React.FC = () => {
           setSelectedItem({...selectedItem, showPlayer: false});
         } else if (selectedItem) {
           setSelectedItem(null);
+        } else if (selectedGame) {
+          setSelectedGame(null);
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedItem]);
+  }, [selectedItem, selectedGame]);
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'EXIT_GAME') {
+        setSelectedGame(null);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   const handleUpdateLogo = (newLogoUrl: string) => {
     setCustomLogo(newLogoUrl);
