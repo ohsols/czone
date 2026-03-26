@@ -7,10 +7,13 @@ import MusicPlayer from './components/MusicPlayer';
 import Partners from './components/Partners';
 import UpdateLog from './components/UpdateLog';
 import DateTimeWidget from './components/DateTimeWidget';
-import { Category, LibraryItem, StaffMember } from './types';
+import { GamesHub } from './components/GamesHub';
+import { Category, LibraryItem, StaffMember, Game, FavoriteItem } from './types';
 import { MOVIES_DATA, ANIME_DATA, MANGA_DATA, TV_DATA, STAFF_DATA, PARTNERS_DATA, PROXIES_DATA } from './constants';
+import { GAME_PAYLOADS } from './gamePayloads';
+import { getEmulatorHtml } from './services/emulatorService';
 import { useLanguage } from './context/LanguageContext';
-import { Search, X, Film, Sparkles, BookOpen, Tv, SearchX, PlayCircle, Star, Globe, Users, ExternalLink, ShieldAlert, Zap, MessageSquare, Activity, Loader2, Book, AlertTriangle, Settings as SettingsIcon, GitCommit, ChevronDown, LayoutGrid } from 'lucide-react';
+import { Search, X, Film, Sparkles, BookOpen, Tv, SearchX, PlayCircle, Star, Globe, Users, ExternalLink, ShieldAlert, Zap, MessageSquare, Activity, Loader2, Book, AlertTriangle, Settings as SettingsIcon, GitCommit, ChevronDown, LayoutGrid, Gamepad2 } from 'lucide-react';
 
 const DEFAULT_LOGO = "https://lh7-rt.googleusercontent.com/sitesz/AClOY7psM7n5cC2oRAQVLVss3LsgYFKWwE-KzTjGQvDYtnnp1f1j-Szl1OH6r1pZTXpsw0t_1es0N4P9E2cBl4Oqs-lOwNJdAt3H5CiGxGZKfBTzaYq_ybiI1qd2dWXWu_GRWMqLDD_3BL9tkNhJBNJhjBuuQWyvP1B19h6v0fblyHBwfxs-94c7?key=IannGxLsV9P5UfJ0NHPqqQ";
 
@@ -53,6 +56,8 @@ const App: React.FC = () => {
   const [customLogo, setCustomLogo] = useState<string>(DEFAULT_LOGO);
   const [selectedItem, setSelectedItem] = useState<{item: LibraryItem, category: string, showPlayer: boolean} | null>(null);
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
+  const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
+  const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isUpdateLogOpen, setIsUpdateLogOpen] = useState(false);
   const { t } = useLanguage();
@@ -92,6 +97,16 @@ const App: React.FC = () => {
     if (staff.link) {
       setSelectedStaff(staff);
     }
+  };
+
+  const onToggleFavorite = (item: FavoriteItem) => {
+    setFavorites(prev => {
+      const exists = prev.find(f => f.id === item.id);
+      if (exists) {
+        return prev.filter(f => f.id !== item.id);
+      }
+      return [...prev, item];
+    });
   };
 
   const [isSidebarVisible, setIsSidebarVisible] = useState(true);
@@ -139,6 +154,68 @@ const App: React.FC = () => {
           <div className="absolute -top-40 -right-40 w-[700px] h-[700px] rounded-full opacity-60" style={{ background: 'var(--accent-glow-dim)', filter: 'blur(160px)', transform: 'translateZ(0)' }}></div>
           <div className="absolute top-1/2 left-1/4 w-[500px] h-[500px] rounded-full opacity-30" style={{ background: 'rgba(37,99,235,0.05)', filter: 'blur(130px)', transform: 'translateZ(0)' }}></div>
         </div>
+
+        <AnimatePresence>
+          {selectedGame && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[100] flex items-center justify-center bg-black/95 backdrop-blur-xl p-4 md:p-8"
+            >
+              <motion.div
+                initial={{ scale: 0.9, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="relative w-full max-w-6xl aspect-video bg-[#0f0f0f] rounded-3xl overflow-hidden border border-white/10 shadow-2xl flex flex-col"
+              >
+                <div className="flex items-center justify-between p-4 border-b border-white/5 bg-black/40 backdrop-blur-md">
+                  <div className="flex items-center gap-4">
+                    <div className={`p-2 rounded-xl bg-gradient-to-br ${selectedGame.color} shadow-lg`}>
+                      <Gamepad2 className="w-5 h-5 text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-bold text-white leading-tight">{selectedGame.title}</h3>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-neutral-500">{selectedGame.system} • {selectedGame.year}</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => setSelectedGame(null)}
+                    className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white transition-all border border-white/5"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+                
+                <div className="flex-1 bg-black relative">
+                  {GAME_PAYLOADS[selectedGame.id] ? (
+                    <iframe 
+                      srcDoc={GAME_PAYLOADS[selectedGame.id].customHtml}
+                      className="w-full h-full border-none"
+                      title={selectedGame.title}
+                      allow="autoplay; fullscreen; keyboard"
+                    />
+                  ) : selectedGame.link ? (
+                    <iframe 
+                      srcDoc={getEmulatorHtml(selectedGame)}
+                      className="w-full h-full border-none"
+                      title={selectedGame.title}
+                      allow="autoplay; fullscreen; keyboard"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8">
+                      <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6">
+                        <ShieldAlert className="w-10 h-10 text-yellow-500" />
+                      </div>
+                      <h3 className="text-2xl font-bold text-white mb-2">Payload Not Found</h3>
+                      <p className="text-neutral-500 max-w-md italic">"The digital signature for this title is missing from our archives. Please check back later."</p>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         
         <div className="relative z-20 flex items-center justify-between p-4 bg-bg/80 backdrop-blur-md border-b border-white/5">
             <button 
@@ -312,38 +389,6 @@ const App: React.FC = () => {
                     transition={{ duration: 0.2, ease: "easeOut" }}
                     className="w-full pb-24"
                   >
-                    {activeCategory === 'movies' && <LibrarySection title={t('Movies')} items={MOVIES_DATA} category="movie" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />}
-                    {activeCategory === 'tv shows' && <LibrarySection title={t('TV Shows')} items={TV_DATA} category="tv" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />}
-                    {activeCategory === 'anime' && <LibrarySection title={t('Animes')} items={ANIME_DATA} category="anime" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />}
-                    {activeCategory === 'manga' && <LibrarySection title={t('Mangas')} items={MANGA_DATA} category="manga" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />}
-                    {activeCategory === 'music' && <MusicPlayer />}
-                    
-                    {activeCategory === 'proxies' && (
-                      <motion.div 
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="py-12 px-6"
-                      >
-                        <h1 className="text-5xl font-black italic uppercase tracking-tighter text-white mb-10">{t('Proxies')}</h1>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                          {PROXIES_DATA.map((proxy, idx) => (
-                            <a 
-                              key={idx} 
-                              href={proxy.url} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="bg-surface-hover p-6 rounded-xl border border-white/5 hover:border-accent/40 transition-colors flex items-center justify-between group"
-                            >
-                              <span className="text-white font-bold"><TranslatedText text={proxy.name || proxy.url} /></span>
-                              <ExternalLink size={16} className="text-text-secondary group-hover:text-accent" />
-                            </a>
-                          ))}
-                        </div>
-                      </motion.div>
-                    )}
-
-                    {activeCategory === 'partners' && <Partners />}
-
                     {activeCategory === 'support' && (
                       <motion.div 
                         initial={{ opacity: 0, y: 20 }}
@@ -359,7 +404,6 @@ const App: React.FC = () => {
                           </p>
                         </div>
                         <section>
-
                           <motion.div 
                             initial="hidden"
                             animate="show"
@@ -478,6 +522,45 @@ const App: React.FC = () => {
                         </section>
                       </div>
                     )}
+
+                    {activeCategory === 'games' && (
+                      <GamesHub 
+                        favorites={favorites} 
+                        onToggleFavorite={onToggleFavorite} 
+                        setSelectedGame={setSelectedGame} 
+                      />
+                    )}
+                    {activeCategory === 'movies' && <LibrarySection title={t('Movies')} items={MOVIES_DATA} category="movie" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />}
+                    {activeCategory === 'tv shows' && <LibrarySection title={t('TV Shows')} items={TV_DATA} category="tv" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />}
+                    {activeCategory === 'anime' && <LibrarySection title={t('Animes')} items={ANIME_DATA} category="anime" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />}
+                    {activeCategory === 'manga' && <LibrarySection title={t('Mangas')} items={MANGA_DATA} category="manga" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />}
+                    {activeCategory === 'music' && <MusicPlayer />}
+                    
+                    {activeCategory === 'proxies' && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="py-12 px-6"
+                      >
+                        <h1 className="text-5xl font-black italic uppercase tracking-tighter text-white mb-10">{t('Proxies')}</h1>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {PROXIES_DATA.map((proxy, idx) => (
+                            <a 
+                              key={idx} 
+                              href={proxy.url} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="bg-surface-hover p-6 rounded-xl border border-white/5 hover:border-accent/40 transition-colors flex items-center justify-between group"
+                            >
+                              <span className="text-white font-bold"><TranslatedText text={proxy.name || proxy.url} /></span>
+                              <ExternalLink size={16} className="text-text-secondary group-hover:text-accent" />
+                            </a>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {activeCategory === 'partners' && <Partners />}
                   </motion.div>
                 </AnimatePresence>
               )}

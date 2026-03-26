@@ -1,3 +1,25 @@
+export interface Game {
+  id: string;
+  title: string;
+  platform: string;
+  system: string;
+  year: string;
+  color: string;
+  desc: string;
+  icon: string;
+  iconColor: string;
+  image: string;
+  link?: string;
+}
+
+export interface FavoriteItem {
+  id: string;
+  type: 'movie' | 'tv' | 'anime' | 'manga' | 'game';
+  title: string;
+  imageUrl: string;
+  link: string;
+}
+
 export interface LibraryItem {
   t: string; // Title
   l?: string; // Link
@@ -40,13 +62,15 @@ export interface ProxyItem {
   name?: string;
 }
 
-export type Category = 'home' | 'movies' | 'tv shows' | 'anime' | 'manga' | 'proxies' | 'partners' | 'dev' | 'support' | 'donate' | 'apps' | 'browser' | 'settings' | 'music';
+export type Category = 'home' | 'movies' | 'tv shows' | 'anime' | 'manga' | 'proxies' | 'partners' | 'dev' | 'support' | 'donate' | 'apps' | 'browser' | 'settings' | 'music' | 'games';
 
 export interface Anime {
   title: string;
   imageUrl: string;
   link?: string;
   links?: { part: string; url: string }[];
+  description?: string;
+  year?: string;
 }
 
 export interface TVShow {
