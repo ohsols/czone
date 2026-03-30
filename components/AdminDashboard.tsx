@@ -540,7 +540,7 @@ const AnalyticsTab = () => {
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        fetch('/api/analytics/data')
+        fetch(`${window.location.origin}/api/analytics/data`)
             .then(res => {
                 if (!res.ok) throw new Error('Failed to fetch analytics');
                 return res.json();

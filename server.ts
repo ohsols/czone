@@ -23,9 +23,11 @@ app.use(cookieParser());
 
 // GA4 Proxy Route
 app.get('/api/analytics/data', async (req, res) => {
+  console.log('Received request for /api/analytics/data');
   try {
     const propertyId = '527976762'; // From the URL
     if (!process.env.GA4_SERVICE_ACCOUNT_JSON) {
+        console.error('GA4 credentials not configured');
         return res.status(500).json({ error: 'GA4 credentials not configured' });
     }
     const analyticsDataClient = new BetaAnalyticsDataClient({
