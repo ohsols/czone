@@ -9,6 +9,11 @@ interface UpdateLogProps {
 
 const UPDATES = [
   {
+    version: "1.3.0",
+    date: "2026-03-30",
+    changes: ["New Theme Added- April Fools Theme 🤡"]
+  },
+  {
     version: "",
     date: "2026-03-26",
     changes: ["JJK Episode 11 and 12 have been added"]

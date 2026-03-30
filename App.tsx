@@ -49,6 +49,68 @@ const TranslatedText: React.FC<{ text: string }> = ({ text }) => {
   return <>{translated}</>;
 };
 
+const ScrambleEffect: React.FC = () => {
+  useEffect(() => {
+    let interval: any;
+    const originalTexts = new Map<HTMLElement, string>();
+
+    const scrambleText = (text: string) => {
+      if (!text) return '';
+      return text.split(' ').map(word => {
+        if (word.length <= 3) return word;
+        const chars = word.split('');
+        for (let i = chars.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [chars[i], chars[j]] = [chars[j], chars[i]];
+        }
+        return chars.join('');
+      }).join(' ');
+    };
+
+    const runScramble = () => {
+      if (document.documentElement.dataset.theme !== 'aprilfools') return;
+
+      // Only target elements that likely contain plain text and are not too complex
+      const elements = Array.from(document.querySelectorAll('h1, h2, h3, p, span, button')) as HTMLElement[];
+      const targetElements = elements
+        .filter(el => {
+          // Avoid elements with many children to prevent React crashes
+          return el.childNodes.length === 1 && el.childNodes[0].nodeType === 3 && Math.random() > 0.7;
+        })
+        .slice(0, 20);
+
+      targetElements.forEach(el => {
+        if (!originalTexts.has(el)) {
+          originalTexts.set(el, el.innerText);
+        }
+        el.innerText = scrambleText(el.innerText);
+      });
+
+      setTimeout(() => {
+        targetElements.forEach(el => {
+          const original = originalTexts.get(el);
+          if (original && document.contains(el)) {
+            el.innerText = original;
+            originalTexts.delete(el);
+          }
+        });
+      }, 1500);
+    };
+
+    interval = setInterval(runScramble, 5000);
+    return () => {
+      clearInterval(interval);
+      originalTexts.forEach((text, el) => {
+        if (document.contains(el)) {
+          el.innerText = text;
+        }
+      });
+    };
+  }, []);
+
+  return null;
+};
+
 const getInitialCategory = (): Category => {
   const path = window.location.pathname.substring(1).toLowerCase();
   const normalizedPath = path.replace('-', ' ') as Category;
@@ -70,7 +132,7 @@ const App: React.FC = () => {
   const [favorites, setFavorites] = useState<FavoriteItem[]>([]);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [isUpdateLogOpen, setIsUpdateLogOpen] = useState(false);
+  const [isUpdateLogOpen, setIsUpdateLogOpen] = useState(true);
   const { t } = useLanguage();
 
   useEffect(() => {
@@ -194,6 +256,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-bg text-text-primary">
+      <ScrambleEffect />
       <div id="app" className="fixed inset-0 flex flex-col overflow-hidden bg-bg text-text-primary">
         {/* Donation Banner */}
         <div className="bg-black text-white py-2 px-4 text-sm font-bold z-[60] relative flex items-center shadow-lg border-b border-white/10 overflow-hidden">
@@ -378,7 +441,7 @@ const App: React.FC = () => {
                         initial={{ opacity: 0, scale: 0.95, y: 10, x: -20 }}
                         animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
                         exit={{ opacity: 0, scale: 0.95, y: 10, x: -20 }}
-                        className="absolute top-14 right-0 z-50 bg-surface border border-surface-hover rounded-2xl shadow-2xl overflow-hidden w-[400px] max-h-[80vh] overflow-y-auto custom-scrollbar"
+                        className="absolute top-14 right-0 z-50 bg-surface border border-surface-hover rounded-2xl shadow-2xl overflow-hidden w-[400px] max-h-[80vh] flex flex-col"
                       >
                         <Settings onClose={() => setIsSettingsOpen(false)} />
                       </motion.div>
