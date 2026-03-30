@@ -1,8 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Plus, Trash2, Edit2, Save, AlertCircle, CheckCircle2, ShieldCheck, Users, Megaphone, Activity, Send, Check } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { db, auth, OperationType, handleFirestoreError } from '../firebase';
 import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc, serverTimestamp, Timestamp, setDoc } from 'firebase/firestore';
+
+interface User {
+  uid: string;
+  email: string | null;
+  displayName: string | null;
+  role: 'admin' | 'user';
+  createdAt: Timestamp;
+}
 
 interface Announcement {
   id: string;
@@ -36,6 +45,7 @@ interface AdminDashboardProps {
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [allowedAdmins, setAllowedAdmins] = useState<AllowedAdmin[]>([]);
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
@@ -43,7 +53,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'announcements' | 'suggestions' | 'stats' | 'users' | 'admins' | 'analytics'>('announcements');
+  const [activeTab, setActiveTab] = useState<'announcements' | 'suggestions' | 'users' | 'admins' | 'analytics'>('announcements');
   const [isAppOwner, setIsAppOwner] = useState(false);
 
   useEffect(() => {
@@ -88,10 +98,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
       handleFirestoreError(err, OperationType.LIST, 'allowed_admins');
     });
 
+    const qUsers = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+    const unsubscribeUsers = onSnapshot(qUsers, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({
+        uid: doc.id,
+        ...doc.data()
+      })) as User[];
+      setUsers(data);
+    }, (err) => {
+      handleFirestoreError(err, OperationType.LIST, 'users');
+    });
+
     return () => {
       unsubscribe();
       unsubscribeSuggestions();
       unsubscribeAdmins();
+      unsubscribeUsers();
     };
   }, []);
 
@@ -159,6 +181,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
     }
   };
 
+  const handleUpdateUserRole = async (uid: string, currentRole: 'admin' | 'user') => {
+    if (!isAppOwner) return;
+    try {
+      await updateDoc(doc(db, 'users', uid), {
+        role: currentRole === 'admin' ? 'user' : 'admin'
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `users/${uid}`);
+    }
+  };
+
   const handleAddAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAdminEmail.trim() || !isAppOwner) return;
@@ -220,7 +253,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
         {[
           { id: 'announcements', icon: Megaphone, label: 'Announcements' },
           { id: 'suggestions', icon: Send, label: 'Suggestions' },
-          { id: 'stats', icon: Activity, label: 'Site Stats' },
           { id: 'analytics', icon: Activity, label: 'Analytics' },
           { id: 'users', icon: Users, label: 'User Management' },
           ...(isAppOwner ? [{ id: 'admins', icon: ShieldCheck, label: 'Manage Admins' }] : [])
@@ -381,27 +413,41 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
           </div>
         )}
 
-        {activeTab === 'stats' && (
-          <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
-            <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center">
-              <Activity className="w-8 h-8 text-neutral-600" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold">Analytics Coming Soon</h3>
-              <p className="text-xs text-neutral-500 max-w-xs mx-auto">We're working on a real-time analytics dashboard to track site traffic and user engagement.</p>
-            </div>
-          </div>
-        )}
-
         {activeTab === 'users' && (
-          <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">
-            <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center">
-              <Users className="w-8 h-8 text-neutral-600" />
-            </div>
-            <div>
-              <h3 className="text-lg font-bold">User Management Coming Soon</h3>
-              <p className="text-xs text-neutral-500 max-w-xs mx-auto">Manage user roles, permissions, and account status from this panel.</p>
-            </div>
+          <div className="space-y-4">
+            <h3 className="text-sm font-black uppercase tracking-widest text-neutral-500">User Management</h3>
+            {users.length === 0 ? (
+              <div className="text-center py-12 text-neutral-600 italic text-sm">No users found.</div>
+            ) : (
+              users.map((user) => (
+                <div key={user.uid} className="bg-white/5 border border-white/5 rounded-2xl p-5 flex items-center justify-between group hover:border-white/10 transition-all">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center text-accent font-bold">
+                      {user.displayName?.charAt(0) || user.email?.charAt(0) || '?'}
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-white">{user.displayName || 'Anonymous'}</h4>
+                      <p className="text-xs text-neutral-400">{user.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded ${
+                      user.role === 'admin' ? 'bg-accent/20 text-accent' : 'bg-neutral-800 text-neutral-400'
+                    }`}>
+                      {user.role}
+                    </span>
+                    {isAppOwner && (
+                      <button 
+                        onClick={() => handleUpdateUserRole(user.uid, user.role)}
+                        className="text-xs text-neutral-500 hover:text-white transition-colors"
+                      >
+                        Toggle Role
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         )}
 
@@ -491,16 +537,53 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
 const AnalyticsTab = () => {
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
     useEffect(() => {
         fetch('/api/analytics/data')
-            .then(res => res.json())
+            .then(res => {
+                if (!res.ok) throw new Error('Failed to fetch analytics');
+                return res.json();
+            })
             .then(data => {
-                setData(data);
+                // Map GA4 data to a format Recharts can use
+                const formattedData = data.rows?.map((row: any) => ({
+                    date: row.dimensionValues[0].value.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'),
+                    activeUsers: parseInt(row.metricValues[0].value, 10)
+                })).sort((a: any, b: any) => a.date.localeCompare(b.date)) || [];
+                
+                setData(formattedData);
+                setLoading(false);
+            })
+            .catch(err => {
+                console.error(err);
+                setError('Failed to load analytics data.');
                 setLoading(false);
             });
     }, []);
+
     if (loading) return <div className="p-6 text-center text-neutral-500">Loading analytics...</div>;
-    return <div className="p-6 text-white"><pre className="text-xs">{JSON.stringify(data, null, 2)}</pre></div>;
+    if (error) return <div className="p-6 text-center text-red-500">{error}</div>;
+
+    return (
+        <div className="p-6 bg-white/5 rounded-2xl border border-white/5">
+            <h3 className="text-sm font-black uppercase tracking-widest text-neutral-500 mb-6">Active Users (Last 30 Days)</h3>
+            <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={data}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                        <XAxis dataKey="date" stroke="#666" fontSize={10} />
+                        <YAxis stroke="#666" fontSize={10} />
+                        <Tooltip 
+                            contentStyle={{ backgroundColor: '#000', borderColor: '#333', color: '#fff' }}
+                            itemStyle={{ color: '#fff' }}
+                        />
+                        <Line type="monotone" dataKey="activeUsers" stroke="#F27D26" strokeWidth={2} dot={{ r: 4 }} />
+                    </LineChart>
+                </ResponsiveContainer>
+            </div>
+        </div>
+    );
 }
 
 export default AdminDashboard;
