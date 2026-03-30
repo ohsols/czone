@@ -54,6 +54,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'announcements' | 'suggestions' | 'users' | 'admins' | 'analytics'>('announcements');
+  const [suggestionFilter, setSuggestionFilter] = useState<'all' | 'pending' | 'reviewed'>('all');
   const [isAppOwner, setIsAppOwner] = useState(false);
 
   useEffect(() => {
@@ -369,11 +370,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
 
         {activeTab === 'suggestions' && (
           <div className="space-y-4">
-            <h3 className="text-sm font-black uppercase tracking-widest text-neutral-500">User Suggestions</h3>
-            {suggestions.length === 0 ? (
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-black uppercase tracking-widest text-neutral-500">User Suggestions</h3>
+              <div className="flex gap-2">
+                {(['all', 'pending', 'reviewed'] as const).map(filter => (
+                  <button
+                    key={filter}
+                    onClick={() => setSuggestionFilter(filter)}
+                    className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
+                      suggestionFilter === filter ? 'bg-accent text-white' : 'bg-white/5 text-neutral-500 hover:text-white'
+                    }`}
+                  >
+                    {filter}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {suggestions.filter(s => suggestionFilter === 'all' || s.status === suggestionFilter).length === 0 ? (
               <div className="text-center py-12 text-neutral-600 italic text-sm">No suggestions found.</div>
             ) : (
-              suggestions.map((suggestion) => (
+              suggestions.filter(s => suggestionFilter === 'all' || s.status === suggestionFilter).map((suggestion) => (
                 <div key={suggestion.id} className="bg-white/5 border border-white/5 rounded-2xl p-5 flex items-start justify-between group hover:border-white/10 transition-all">
                   <div className="space-y-2 flex-1 pr-4">
                     <div className="flex items-center gap-2">
@@ -540,8 +556,10 @@ const AnalyticsTab = () => {
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        fetch(`${window.location.origin}/api/analytics/data`)
+        console.log('Fetching analytics from:', import.meta.env.VITE_API_URL || window.location.origin);
+        fetch(`${import.meta.env.VITE_API_URL || window.location.origin}/api/analytics/data`)
             .then(res => {
+                console.log('Response status:', res.status);
                 if (!res.ok) throw new Error('Failed to fetch analytics');
                 return res.json();
             })
