@@ -459,13 +459,15 @@ const App: React.FC = () => {
             <div className="text-xs text-text-secondary">© 2026 ChillZone</div>
         </div>
 
-        {isSidebarVisible && !selectedGame && !isAuthModalOpen && !isAdminOpen && (
+        {!selectedGame && !isAuthModalOpen && !isAdminOpen && (
             <Sidebar 
             activeCategory={activeCategory} 
             onSelect={(cat) => { setActiveCategory(cat); setSearchQuery(''); setIsSettingsOpen(false); }} 
             logoUrl={customLogo} 
             onLogoChange={handleUpdateLogo}
             isAdmin={isAdmin}
+            isChatCategory={activeCategory === 'chat' || activeCategory === 'admin-chat'}
+            isSidebarVisible={isSidebarVisible}
             />
         )}
         

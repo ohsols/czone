@@ -11,9 +11,11 @@ interface SidebarProps {
   logoUrl: string;
   onLogoChange: (newLogo: string) => void;
   isAdmin?: boolean;
+  isChatCategory?: boolean;
+  isSidebarVisible?: boolean;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeCategory, onSelect, logoUrl, onLogoChange, isAdmin }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeCategory, onSelect, logoUrl, onLogoChange, isAdmin, isChatCategory, isSidebarVisible }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { t } = useLanguage();
   const [isHovered, setIsHovered] = useState(false);
@@ -52,7 +54,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activeCategory, onSelect, logoUrl, on
   return (
     <motion.aside 
       initial={false}
-      animate={{ height: isHovered ? 160 : 80 }}
+      animate={{ 
+        height: isChatCategory ? (isHovered ? 80 : 10) : (isSidebarVisible ? 80 : 0),
+        opacity: isChatCategory ? (isHovered ? 1 : 0.1) : (isSidebarVisible ? 1 : 0)
+      }}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       className="bg-bg border-b border-white/5 flex flex-row items-center px-8 shrink-0 transition-all duration-300 z-[100] w-full relative"

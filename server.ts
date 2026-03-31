@@ -51,8 +51,8 @@ app.get('/api/analytics/data', async (req, res) => {
 // Music Proxy Routes
 const MONOCHROME_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-  'Referer': 'https://monochrome.tf/',
-  'Origin': 'https://monochrome.tf',
+  'Referer': 'https://monochrome.samidy.com/',
+  'Origin': 'https://monochrome.samidy.com',
   'Accept': 'application/json, text/plain, */*',
   'Accept-Language': 'en-US,en;q=0.9',
   'Cache-Control': 'no-cache',
@@ -67,8 +67,11 @@ app.get('/api/music/monochrome/search', async (req, res) => {
     console.log(`Monochrome search for: ${query}`);
 
     const monochromeMirrors = [
-      `https://api.monochrome.tf/search?s=${encodeURIComponent(query)}`,
-      `https://monochrome.tf/api/search?s=${encodeURIComponent(query)}`
+      `https://monochrome.samidy.com/search?s=${encodeURIComponent(query)}`,
+      `https://monochrome.samidy.com/search?q=${encodeURIComponent(query)}`,
+      `https://monochrome.samidy.com/search?query=${encodeURIComponent(query)}`,
+      `https://monochrome.samidy.com/v1/search?s=${encodeURIComponent(query)}`,
+      `https://monochrome.samidy.com/v2/search?s=${encodeURIComponent(query)}`
     ];
 
     let lastError = null;
@@ -88,12 +91,19 @@ app.get('/api/music/monochrome/search', async (req, res) => {
 
           const contentType = response.headers['content-type'] || '';
           console.log(`Monochrome mirror ${url} returned status ${response.status} with content-type ${contentType}`);
-          if (response.status === 200 && contentType.includes('application/json')) {
-            console.log('Monochrome search success');
-            return res.json(response.data);
+          
+          if (response.status === 200) {
+            if (contentType.includes('application/json')) {
+              console.log('Monochrome search success');
+              return res.json(response.data);
+            } else {
+              console.error(`Monochrome search failed with status 200. Content-Type: ${contentType}. Body snippet: ${typeof response.data === 'string' ? response.data.substring(0, 100) : 'non-string body'}`);
+              lastError = new Error(`Monochrome search failed with status 200 but returned ${contentType} instead of application/json`);
+            }
+          } else {
+            lastError = new Error(`Monochrome mirror returned status ${response.status}`);
           }
           
-          lastError = new Error(`Monochrome mirror returned status ${response.status}`);
           console.debug(`Monochrome mirror ${url} returned status ${response.status} with content-type ${contentType}`);
           // If not 200, it's a failure, but we want to retry if retries > 0
           retries--;
@@ -127,8 +137,7 @@ app.get('/api/music/monochrome/track/:id', async (req, res) => {
     const quality = req.query.quality || 'HIGH';
     
     const monochromeTrackMirrors = [
-      `https://api.monochrome.tf/track?id=${id}&quality=${quality}`,
-      `https://monochrome.tf/api/track?id=${id}&quality=${quality}`
+      `https://monochrome.samidy.com/track?id=${id}&quality=${quality}`
     ];
 
     for (const url of monochromeTrackMirrors) {

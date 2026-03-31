@@ -63,7 +63,7 @@ const MusicPlayer: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/music/monochrome/search?s=${encodeURIComponent(searchQuery)}`);
+      const response = await fetch(`/api/music/youtube/search?s=${encodeURIComponent(searchQuery)}`);
       const contentType = response.headers.get('content-type');
       
       if (response.ok && contentType && contentType.includes('application/json')) {
@@ -71,7 +71,7 @@ const MusicPlayer: React.FC = () => {
         handleSearchResults(data);
       } else {
         const text = await response.text();
-        console.error(`Monochrome search failed with status ${response.status}. Content-Type: ${contentType}. Body snippet: ${text.substring(0, 100)}`);
+        console.error(`YouTube Music search failed with status ${response.status}. Content-Type: ${contentType}. Body snippet: ${text.substring(0, 100)}`);
         throw new Error(`Music search failed with status ${response.status}`);
       }
     } catch (error) {
@@ -85,91 +85,32 @@ const MusicPlayer: React.FC = () => {
     console.log('MusicPlayer: handleSearchResults data:', data);
     let formattedTracks: Track[] = [];
 
-    // Handle Monochrome response
+    // Handle YouTube Music response
     if (data.data && Array.isArray(data.data.items)) {
       formattedTracks = data.data.items.map((item: any) => ({
-        id: item.id,
+        id: item.videoId,
         title: item.title,
-        artist: (typeof item.artist === 'object' ? item.artist.name : item.artist) || 'Unknown Artist',
-        album: item.album.title,
-        cover: `https://resources.tidal.com/images/${item.album.cover.replace(/-/g, '/')}/640x640.jpg`,
+        artist: item.artist?.name || item.artists?.[0]?.name || 'Unknown Artist',
+        album: item.album?.name || 'Unknown Album',
+        cover: item.thumbnail?.[item.thumbnail.length - 1]?.url || '',
         streamUrl: undefined,
-        source: 'monochrome'
+        source: 'youtube'
       }));
     } 
-    // Handle Saavn fallback response
-    else if (data.data && Array.isArray(data.data.results)) {
-      formattedTracks = data.data.results.map((item: any) => ({
-        id: item.id,
-        title: item.name || item.title,
-        artist: (typeof item.artists === 'object' ? (Array.isArray(item.artists.primary) ? item.artists.primary[0]?.name : item.artists.primary?.name) : item.artist) || item.subtitle || 'Unknown Artist',
-        album: item.album?.name || item.album || 'Unknown Album',
-        cover: (Array.isArray(item.image) ? (item.image[2]?.link || item.image[2]?.url || item.image[0]?.link || item.image[0]?.url || (typeof item.image[0] === 'string' ? item.image[0] : '')) : (typeof item.image === 'string' ? item.image : '')),
-        streamUrl: item.downloadUrl?.[4]?.link || item.downloadUrl?.[4]?.url || (typeof item.downloadUrl === 'string' ? item.downloadUrl : undefined),
-        source: 'saavn'
-      }));
-    } else if (Array.isArray(data.results)) {
-      formattedTracks = data.results.map((item: any) => ({
-        id: item.id,
-        title: item.name || item.title,
-        artist: (typeof item.artists === 'object' ? (Array.isArray(item.artists.primary) ? item.artists.primary[0]?.name : item.artists.primary?.name) : item.artist) || item.subtitle || 'Unknown Artist',
-        album: item.album?.name || item.album || 'Unknown Album',
-        cover: (Array.isArray(item.image) ? (item.image[2]?.link || item.image[2]?.url || item.image[0]?.link || item.image[0]?.url || (typeof item.image[0] === 'string' ? item.image[0] : '')) : (typeof item.image === 'string' ? item.image : '')),
-        streamUrl: item.downloadUrl?.[4]?.link || item.downloadUrl?.[4]?.url || (typeof item.downloadUrl === 'string' ? item.downloadUrl : undefined),
-        source: 'saavn'
-      }));
-    } else if (Array.isArray(data)) {
-      formattedTracks = data.map((item: any) => ({
-        id: item.id,
-        title: item.song || item.name || item.title,
-        artist: item.singers || item.artist || item.subtitle || 'Unknown Artist',
-        album: item.album || 'Unknown Album',
-        cover: typeof item.image === 'string' ? item.image : (Array.isArray(item.image) ? (item.image[2]?.link || item.image[2]?.url || item.image[0]?.link || '') : ''),
-        streamUrl: typeof item.media_url === 'string' ? item.media_url : (typeof item.downloadUrl === 'string' ? item.downloadUrl : undefined),
-        source: 'saavn'
-      }));
-    }
 
     setTracks(formattedTracks);
   };
 
-  const fetchStreamUrl = async (trackId: string | number, source: string = 'monochrome') => {
+  const fetchStreamUrl = async (trackId: string | number, source: string = 'youtube') => {
     try {
-      const response = await fetch(`/api/music/monochrome/track/${trackId}?quality=HIGH`);
+      const response = await fetch(`/api/music/youtube/track/${trackId}`);
       if (!response.ok) {
         throw new Error(`Failed to fetch track info: ${response.status}`);
       }
       const data = await response.json();
       console.log('MusicPlayer: fetchStreamUrl data:', data);
       
-      // Check if it's a Saavn response from the fallback
-      if (source === 'saavn' || (data.data && data.data[0] && data.data[0].downloadUrl)) {
-        const song = data.data?.[0] || data[0] || data;
-        if (Array.isArray(song.downloadUrl)) {
-          const highestQuality = song.downloadUrl[song.downloadUrl.length - 1];
-          return highestQuality?.link || highestQuality?.url || null;
-        }
-        return song.downloadUrl || song.media_url || null;
-      }
-
-      // Monochrome logic
-      if (!data || !data.data || !data.data.manifest) {
-        console.error('Invalid track data received:', data);
-        return null;
-      }
-
-      try {
-        const manifest = JSON.parse(atob(data.data.manifest));
-        if (!manifest || !manifest.urls || manifest.urls.length === 0) {
-          console.error('No stream URLs found in manifest:', manifest);
-          return null;
-        }
-        
-        return manifest.urls[0];
-      } catch (e) {
-        console.error('Error parsing manifest:', e);
-        return null;
-      }
+      return data.streamingData?.formats?.[0]?.url || data.url || null;
     } catch (error) {
       console.error('Error fetching stream URL:', error);
       return null;
