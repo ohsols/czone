@@ -16,6 +16,7 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
   const [newMessage, setNewMessage] = useState('');
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [replyTo, setReplyTo] = useState<{ id: string, text: string, displayName: string } | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
@@ -52,8 +53,10 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
       uid: auth.currentUser.uid,
       displayName: auth.currentUser.displayName || 'Anonymous',
       role: isSuperAdmin ? 'super-admin' : (isAdmin ? 'admin' : 'user'),
+      replyTo: replyTo ? { id: replyTo.id, text: replyTo.text, displayName: replyTo.displayName } : null,
     });
     setNewMessage('');
+    setReplyTo(null);
   };
 
   const deleteMessage = async (id: string) => {
@@ -114,6 +117,12 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
                   {msg.createdAt?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
+              {msg.replyTo && (
+                <div className="bg-white/10 p-2 rounded-lg mb-2 text-xs opacity-70 border-l-2 border-accent">
+                  <p className="font-bold">{msg.replyTo.displayName}</p>
+                  <p className="truncate">{msg.replyTo.text}</p>
+                </div>
+              )}
               {editingMessageId === msg.id ? (
                 <div className="flex gap-2">
                   <input
@@ -127,17 +136,26 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
               ) : (
                 <p className="text-sm">{msg.text}</p>
               )}
-              {msg.uid === auth.currentUser?.uid && editingMessageId !== msg.id && (
-                <div className="flex gap-2 mt-2 justify-end">
-                  <button onClick={() => startEdit(msg.id, msg.text)} className="opacity-50 hover:opacity-100"><Edit2 size={12} /></button>
-                  <button onClick={() => deleteMessage(msg.id)} className="opacity-50 hover:opacity-100"><Trash2 size={12} /></button>
-                </div>
-              )}
+              <div className="flex gap-2 mt-2 justify-end">
+                <button onClick={() => setReplyTo({ id: msg.id, text: msg.text, displayName: msg.displayName })} className="opacity-50 hover:opacity-100"><MessageSquare size={12} /></button>
+                {msg.uid === auth.currentUser?.uid && editingMessageId !== msg.id && (
+                  <>
+                    <button onClick={() => startEdit(msg.id, msg.text)} className="opacity-50 hover:opacity-100"><Edit2 size={12} /></button>
+                    <button onClick={() => deleteMessage(msg.id)} className="opacity-50 hover:opacity-100"><Trash2 size={12} /></button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         ))}
         <div ref={messagesEndRef} />
       </div>
+      {replyTo && (
+        <div className="bg-white/5 p-2 rounded-t-xl border-t border-x border-white/5 text-xs text-neutral-400 flex justify-between items-center">
+          <span>Replying to <strong>{replyTo.displayName}</strong>: {replyTo.text.slice(0, 30)}...</span>
+          <button onClick={() => setReplyTo(null)}><X size={14} /></button>
+        </div>
+      )}
       <form onSubmit={sendMessage} className="flex gap-2 relative">
         <div className="relative flex-1 flex gap-2">
           <input

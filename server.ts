@@ -74,28 +74,35 @@ app.get('/api/music/monochrome/search', async (req, res) => {
     let lastError = null;
 
     for (const url of monochromeMirrors) {
-      let retries = 2;
+      // Add a small delay between trying different mirrors
+      await new Promise(resolve => setTimeout(resolve, 500));
+      let retries = 1; // Reduced retries
       while (retries > 0) {
         try {
           console.log(`Trying Monochrome mirror (Retries left: ${retries}): ${url}`);
           const response = await axios.get(url, { 
             headers: MONOCHROME_HEADERS,
-            timeout: 8000,
-            validateStatus: (status) => status < 500
+            timeout: 3000, // Reduced timeout
+            validateStatus: (status) => true // Allow all status codes to handle 503 gracefully
           });
 
           const contentType = response.headers['content-type'] || '';
+          console.log(`Monochrome mirror ${url} returned status ${response.status} with content-type ${contentType}`);
           if (response.status === 200 && contentType.includes('application/json')) {
             console.log('Monochrome search success');
             return res.json(response.data);
           }
           
-          console.warn(`Monochrome mirror ${url} returned status ${response.status} with content-type ${contentType}`);
-          break; // Don't retry if it's not a 5xx error
+          lastError = new Error(`Monochrome mirror returned status ${response.status}`);
+          console.debug(`Monochrome mirror ${url} returned status ${response.status} with content-type ${contentType}`);
+          // If not 200, it's a failure, but we want to retry if retries > 0
+          retries--;
+          if (retries > 0) await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
+          continue; // Continue the while loop
         } catch (e: any) {
           lastError = e;
-          // Use console.warn instead of console.error for individual mirror failures to reduce noise
-          console.warn(`Monochrome mirror attempt failed: ${url}. Error: ${e.message}`);
+          // Only log as debug to reduce noise
+          console.debug(`Monochrome mirror attempt failed: ${url}. Error: ${e.message}`);
           retries--;
           if (retries > 0) await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
         }
@@ -103,33 +110,9 @@ app.get('/api/music/monochrome/search', async (req, res) => {
     }
 
     // SILENT FALLBACK TO SAAVN IF MONOCHROME FAILS
-    console.warn('All Monochrome mirrors failed, falling back to Saavn mirrors...');
-    const saavnMirrors = [
-      `https://jiosaavn-api.vercel.app/search?query=${encodeURIComponent(query)}`,
-      `https://jiosaavn-api-v3.vercel.app/search?query=${encodeURIComponent(query)}`,
-      `https://jiosaavn-api-beta.vercel.app/search?query=${encodeURIComponent(query)}`,
-      `https://saavn.me/api/search/songs?query=${encodeURIComponent(query)}`,
-      `https://music-api-v2.vercel.app/search?query=${encodeURIComponent(query)}`
-    ];
-
-    for (const url of saavnMirrors) {
-      try {
-        console.log(`Trying Saavn fallback mirror: ${url}`);
-        const response = await axios.get(url, { timeout: 5000 });
-        if (response.data) {
-          console.log(`Success with Saavn fallback: ${url}`);
-          // Transform Saavn response to a format the client can understand if needed, 
-          // but the client already has logic for both. 
-          // Actually, let's just return it and let the client handle it.
-          return res.json(response.data);
-        }
-      } catch (e: any) {
-        console.error(`Saavn fallback failed: ${url}. Error: ${e.message}`);
-      }
-    }
-
+    // Fallback removed per user request
     res.status(503).json({ 
-      error: 'All music search APIs failed', 
+      error: 'Monochrome music search API failed', 
       details: lastError?.message || 'Service Unavailable' 
     });
   } catch (error) {
@@ -149,25 +132,31 @@ app.get('/api/music/monochrome/track/:id', async (req, res) => {
     ];
 
     for (const url of monochromeTrackMirrors) {
-      let retries = 2;
+      // Add a small delay between trying different mirrors
+      await new Promise(resolve => setTimeout(resolve, 500));
+      let retries = 1; // Reduced retries to fail faster
       while (retries > 0) {
         try {
           console.log(`Trying Monochrome track mirror (Retries left: ${retries}): ${url}`);
           const response = await axios.get(url, { 
             headers: MONOCHROME_HEADERS,
-            timeout: 8000,
-            validateStatus: (status) => status < 500
+            timeout: 3000, // Reduced timeout
+            validateStatus: (status) => true // Allow all status codes to handle 503 gracefully
           });
           
           const contentType = response.headers['content-type'] || '';
           if (response.status === 200 && contentType.includes('application/json')) {
+            console.log('Monochrome track success');
             return res.json(response.data);
           }
           
-          console.warn(`Monochrome track mirror ${url} returned status ${response.status} with content-type ${contentType}`);
-          break;
+          console.debug(`Monochrome track mirror ${url} returned status ${response.status} with content-type ${contentType}`);
+          // If not 200, it's a failure, but we want to retry if retries > 0
+          retries--;
+          if (retries > 0) await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
+          continue; // Continue the while loop
         } catch (e: any) {
-          console.error(`Monochrome track mirror attempt failed: ${url}. Error: ${e.message}`);
+          console.debug(`Monochrome track mirror attempt failed: ${url}. Error: ${e.message}`);
           retries--;
           if (retries > 0) await new Promise(resolve => setTimeout(resolve, 1000));
         }
@@ -176,22 +165,9 @@ app.get('/api/music/monochrome/track/:id', async (req, res) => {
 
     // If it's a Saavn ID (numeric or alphanumeric from Saavn), we might need a different endpoint
     // but the client usually knows which one to call. 
-    // For now, let's try a Saavn fallback for track details too.
-    const saavnTrackMirrors = [
-      `https://jiosaavn-api.vercel.app/song?id=${id}`,
-      `https://saavn.me/api/songs/${id}`
-    ];
+    // Fallback removed per user request
 
-    for (const url of saavnTrackMirrors) {
-      try {
-        const response = await axios.get(url, { timeout: 5000 });
-        if (response.data) return res.json(response.data);
-      } catch (e) {
-        // ignore
-      }
-    }
-
-    res.status(503).json({ error: 'Failed to fetch track details from all sources' });
+    res.status(503).json({ error: 'Failed to fetch track details from Monochrome' });
   } catch (error) {
     console.error('Track proxy error:', error);
     res.status(500).json({ error: 'Failed to fetch track details' });

@@ -82,6 +82,7 @@ const MusicPlayer: React.FC = () => {
   };
 
   const handleSearchResults = (data: any) => {
+    console.log('MusicPlayer: handleSearchResults data:', data);
     let formattedTracks: Track[] = [];
 
     // Handle Monochrome response
@@ -89,7 +90,7 @@ const MusicPlayer: React.FC = () => {
       formattedTracks = data.data.items.map((item: any) => ({
         id: item.id,
         title: item.title,
-        artist: item.artist.name,
+        artist: (typeof item.artist === 'object' ? item.artist.name : item.artist) || 'Unknown Artist',
         album: item.album.title,
         cover: `https://resources.tidal.com/images/${item.album.cover.replace(/-/g, '/')}/640x640.jpg`,
         streamUrl: undefined,
@@ -101,7 +102,7 @@ const MusicPlayer: React.FC = () => {
       formattedTracks = data.data.results.map((item: any) => ({
         id: item.id,
         title: item.name || item.title,
-        artist: item.artists?.primary?.[0]?.name || item.artist || item.subtitle || 'Unknown Artist',
+        artist: (typeof item.artists === 'object' ? (Array.isArray(item.artists.primary) ? item.artists.primary[0]?.name : item.artists.primary?.name) : item.artist) || item.subtitle || 'Unknown Artist',
         album: item.album?.name || item.album || 'Unknown Album',
         cover: (Array.isArray(item.image) ? (item.image[2]?.link || item.image[2]?.url || item.image[0]?.link || item.image[0]?.url || (typeof item.image[0] === 'string' ? item.image[0] : '')) : (typeof item.image === 'string' ? item.image : '')),
         streamUrl: item.downloadUrl?.[4]?.link || item.downloadUrl?.[4]?.url || (typeof item.downloadUrl === 'string' ? item.downloadUrl : undefined),
@@ -111,7 +112,7 @@ const MusicPlayer: React.FC = () => {
       formattedTracks = data.results.map((item: any) => ({
         id: item.id,
         title: item.name || item.title,
-        artist: item.artists?.primary?.[0]?.name || item.artist || item.subtitle || 'Unknown Artist',
+        artist: (typeof item.artists === 'object' ? (Array.isArray(item.artists.primary) ? item.artists.primary[0]?.name : item.artists.primary?.name) : item.artist) || item.subtitle || 'Unknown Artist',
         album: item.album?.name || item.album || 'Unknown Album',
         cover: (Array.isArray(item.image) ? (item.image[2]?.link || item.image[2]?.url || item.image[0]?.link || item.image[0]?.url || (typeof item.image[0] === 'string' ? item.image[0] : '')) : (typeof item.image === 'string' ? item.image : '')),
         streamUrl: item.downloadUrl?.[4]?.link || item.downloadUrl?.[4]?.url || (typeof item.downloadUrl === 'string' ? item.downloadUrl : undefined),
@@ -139,6 +140,7 @@ const MusicPlayer: React.FC = () => {
         throw new Error(`Failed to fetch track info: ${response.status}`);
       }
       const data = await response.json();
+      console.log('MusicPlayer: fetchStreamUrl data:', data);
       
       // Check if it's a Saavn response from the fallback
       if (source === 'saavn' || (data.data && data.data[0] && data.data[0].downloadUrl)) {
@@ -176,6 +178,14 @@ const MusicPlayer: React.FC = () => {
 
   const playTrack = async (index: number) => {
     const track = tracks[index];
+    
+    // Stop current playback if any
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.src = '';
+    }
+    setIsPlaying(false);
+
     if (!track.streamUrl) {
       setIsLoading(true);
       const url = await fetchStreamUrl(track.id, track.source);
@@ -185,16 +195,29 @@ const MusicPlayer: React.FC = () => {
         setTracks(newTracks);
         if (audioRef.current) {
             audioRef.current.src = url;
-            audioRef.current.play().catch(e => console.error("Playback failed", e));
-            setIsPlaying(true);
+            try {
+                await audioRef.current.play();
+                setIsPlaying(true);
+            } catch (e) {
+                console.error("Playback failed", e);
+                setIsPlaying(false);
+            }
         }
+      } else {
+        console.error("No stream URL found for track");
+        // Optionally: show a toast notification here
       }
       setIsLoading(false);
     } else {
        if (audioRef.current) {
           audioRef.current.src = track.streamUrl;
-          audioRef.current.play().catch(e => console.error("Playback failed", e));
-          setIsPlaying(true);
+          try {
+              await audioRef.current.play();
+              setIsPlaying(true);
+          } catch (e) {
+              console.error("Playback failed", e);
+              setIsPlaying(false);
+          }
        }
     }
     setCurrentTrackIndex(index);
@@ -496,6 +519,7 @@ const MusicPlayer: React.FC = () => {
         ref={audioRef} 
         onTimeUpdate={handleTimeUpdate}
         onEnded={handleEnded}
+        onError={(e) => console.error("Audio playback error:", e)}
         className="hidden"
       />
 
