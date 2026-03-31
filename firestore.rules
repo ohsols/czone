@@ -53,12 +53,15 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    function isAppOwner() {
+    function isSuperAdmin() {
       return isAuthenticated() && (
         (request.auth.token.email == "darkfn1234567890@gmail.com" && request.auth.token.email_verified == true) ||
-        (request.auth.token.email == "whitecaleb888@gmail.com" && request.auth.token.email_verified == true) ||
-        (request.auth.token.email == "calebwhite2@chisd.net" && request.auth.token.email_verified == true)
+        (request.auth.token.email == "whitecaleb888@gmail.com" && request.auth.token.email_verified == true)
       );
+    }
+
+    function isAppOwner() {
+      return isSuperAdmin() || (isAuthenticated() && request.auth.token.email == "calebwhite2@chisd.net" && request.auth.token.email_verified == true);
     }
 
     function isAdmin() {
@@ -127,15 +130,16 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == 'user' || isAdmin() || isAllowedAdmin());
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == 'user' || isSuperAdmin() || isAllowedAdmin() || isAppOwner());
       allow update: if (isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role) ||
-                    (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role']) && request.resource.data.role in ['admin', 'user']);
+                    (isSuperAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role']) && request.resource.data.role in ['admin', 'user']) ||
+                    (isOwner(userId) && (isAllowedAdmin() || isAppOwner()) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role']) && request.resource.data.role == 'admin');
     }
 
     match /allowed_admins/{docId} {
       allow read: if true;
-      allow create, update: if isAdmin() && isValidAllowedAdmin(request.resource.data);
-      allow delete: if isAdmin();
+      allow create, update: if isSuperAdmin() && isValidAllowedAdmin(request.resource.data);
+      allow delete: if isSuperAdmin();
     }
 
     match /site_announcements/{announcementId} {

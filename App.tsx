@@ -149,6 +149,7 @@ const App: React.FC = () => {
   const [isSuggestionModalOpen, setIsSuggestionModalOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const { t } = useLanguage();
 
@@ -157,6 +158,7 @@ const App: React.FC = () => {
       console.log("Auth state changed:", currentUser?.email);
       setUser(currentUser);
       setIsAdmin(currentUser?.email === 'darkfn1234567890@gmail.com' || currentUser?.email === 'whitecaleb888@gmail.com' || currentUser?.email === 'calebwhite2@chisd.net')
+      setIsSuperAdmin(currentUser?.email === 'darkfn1234567890@gmail.com' || currentUser?.email === 'whitecaleb888@gmail.com')
       setIsAuthReady(true);
       if (currentUser) {
         setIsAuthModalOpen(false);
@@ -215,7 +217,9 @@ const App: React.FC = () => {
         
         // Update admin status based on role in database
         const isAppOwner = user.email === 'darkfn1234567890@gmail.com' || user.email === 'whitecaleb888@gmail.com' || user.email === 'calebwhite2@chisd.net';
+        const isSuperOwner = user.email === 'darkfn1234567890@gmail.com' || user.email === 'whitecaleb888@gmail.com';
         setIsAdmin(isAppOwner || data.role === 'admin');
+        setIsSuperAdmin(isSuperOwner);
       }
     }, (err) => {
       handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
@@ -992,7 +996,7 @@ const App: React.FC = () => {
               onClick={(e) => e.stopPropagation()}
               className="relative w-full max-w-5xl h-[80vh] bg-[#0f0f0f] rounded-3xl overflow-hidden border border-white/10 shadow-2xl"
             >
-              <AdminDashboard onClose={() => setIsAdminOpen(false)} />
+              <AdminDashboard onClose={() => setIsAdminOpen(false)} isSuperAdmin={isSuperAdmin} />
             </motion.div>
           </motion.div>
         )}

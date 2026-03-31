@@ -40,9 +40,10 @@ interface AllowedAdmin {
 
 interface AdminDashboardProps {
   onClose: () => void;
+  isSuperAdmin: boolean;
 }
 
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin }) => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -262,8 +263,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
           { id: 'announcements', icon: Megaphone, label: 'Announcements' },
           { id: 'suggestions', icon: Send, label: 'Suggestions' },
           { id: 'analytics', icon: Activity, label: 'Analytics' },
-          { id: 'users', icon: Users, label: 'User Management' },
-          { id: 'admins', icon: ShieldCheck, label: 'Manage Admins' }
+          ...(isSuperAdmin ? [
+            { id: 'users', icon: Users, label: 'User Management' },
+            { id: 'admins', icon: ShieldCheck, label: 'Manage Admins' }
+          ] : [])
         ].map((tab) => (
           <button
             key={tab.id}
@@ -436,7 +439,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
           </div>
         )}
 
-        {activeTab === 'users' && (
+        {isSuperAdmin && activeTab === 'users' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-black uppercase tracking-widest text-neutral-500">User Management</h3>
@@ -492,7 +495,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose }) => {
           </div>
         )}
 
-        {activeTab === 'admins' && (
+        {isSuperAdmin && activeTab === 'admins' && (
           <div className="space-y-6">
             <form onSubmit={handleAddAdmin} className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
               <h3 className="text-sm font-black uppercase tracking-widest text-accent">Add New Admin</h3>
