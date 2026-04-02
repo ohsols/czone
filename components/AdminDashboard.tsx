@@ -83,7 +83,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
       handleFirestoreError(err, OperationType.LIST, 'suggestions');
     });
 
-    const qAdmins = query(collection(db, 'allowed_admins'), orderBy('createdAt', 'desc'), limit(50));
+    const qAdmins = query(collection(db, 'allowed_admins'), orderBy('createdAt', 'desc'), limit(500));
     const unsubscribeAdmins = onSnapshot(qAdmins, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -94,7 +94,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
       handleFirestoreError(err, OperationType.LIST, 'allowed_admins');
     });
 
-    const qUsers = query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(50));
+    const qUsers = query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(500));
     const unsubscribeUsers = onSnapshot(qUsers, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
         uid: doc.id,
