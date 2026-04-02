@@ -194,7 +194,7 @@ const App: React.FC = () => {
       console.log("Auth state changed:", currentUser?.email);
       setUser(currentUser);
       setIsAdmin(currentUser?.email === 'darkfn1234567890@gmail.com' || currentUser?.email === 'whitecaleb888@gmail.com' || currentUser?.email === 'calebwhite2@chisd.net')
-      setIsSuperAdmin(currentUser?.email === 'darkfn1234567890@gmail.com' || currentUser?.email === 'whitecaleb888@gmail.com')
+      setIsSuperAdmin(currentUser?.email === 'darkfn1234567890@gmail.com' || currentUser?.email === 'whitecaleb888@gmail.com' || currentUser?.email === 'calebwhite2@chisd.net')
       setIsAuthReady(true);
       if (currentUser) {
         setIsAuthModalOpen(false);
