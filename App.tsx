@@ -167,6 +167,7 @@ const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isBanned, setIsBanned] = useState(false);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const { t } = useLanguage();
 
@@ -245,6 +246,7 @@ const App: React.FC = () => {
         const isSuperOwner = email === 'darkfn1234567890@gmail.com' || email === 'whitecaleb888@gmail.com';
         setIsAdmin(isAppOwner || data.role === 'admin' || data.role === 'co-owner' || data.role === 'owner');
         setIsSuperAdmin(isSuperOwner);
+        setIsBanned(!!data.banned);
       }
     }, (err) => {
       handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
@@ -431,6 +433,35 @@ const App: React.FC = () => {
 
   // Check if the current link is a fallback search link
   const isSearchLink = selectedItem?.item.l?.includes('drive.google.com/drive/search');
+
+  if (isBanned) {
+    return (
+      <div className="fixed inset-0 z-[9999] bg-black flex items-center justify-center p-6 text-center">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-md w-full bg-[#0a0a0a] border border-red-500/20 rounded-[32px] p-12 shadow-2xl shadow-red-500/10"
+        >
+          <div className="w-24 h-24 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-8 border border-red-500/20">
+            <ShieldAlert className="w-12 h-12 text-red-500" />
+          </div>
+          <h1 className="text-4xl font-black uppercase italic tracking-tighter text-white mb-4">Access Denied</h1>
+          <p className="text-neutral-400 text-sm leading-relaxed mb-8">
+            Your account has been permanently banned for violating our community guidelines and terms of service.
+          </p>
+          <div className="p-4 bg-red-500/5 border border-red-500/10 rounded-2xl mb-8">
+            <p className="text-[10px] font-black uppercase tracking-widest text-red-500/60">Protocol: Violation-403</p>
+          </div>
+          <button 
+            onClick={() => logout()}
+            className="w-full py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-black uppercase tracking-widest text-xs transition-all border border-white/5"
+          >
+            Logout
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-bg text-text-primary">

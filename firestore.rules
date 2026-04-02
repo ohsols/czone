@@ -12,7 +12,8 @@ service cloud.firestore {
     //   - email: string (required, email) - The user's email address
     //   - displayName: string (optional) - The user's display name
     //   - photoURL: string (optional, url) - The user's profile photo URL
-    //   - role: string (required, enum: ['admin', 'user', 'donator']) - The user's role
+    //   - role: string (required, enum: ['admin', 'co-owner', 'owner', 'user', 'donator']) - The user's role
+    //   - banned: bool (optional) - Whether the user is banned
     //   - createdAt: timestamp (required) - When the user profile was created
     //   - favorites: list (optional) - User's favorite items
     //   - theme: string (optional) - User's preferred theme ID
@@ -54,24 +55,28 @@ service cloud.firestore {
     }
 
     function isSuperAdmin() {
-      return isAuthenticated() && (
-        (request.auth.token.email.lower() == "darkfn1234567890@gmail.com" && request.auth.token.email_verified == true) ||
-        (request.auth.token.email.lower() == "whitecaleb888@gmail.com" && request.auth.token.email_verified == true)
-      ) || isCoOwner();
+      return isAuthenticated() && 
+             (request.auth.token.get('email', '').lower() == "darkfn1234567890@gmail.com" || 
+              request.auth.token.get('email', '').lower() == "whitecaleb888@gmail.com");
     }
 
     function isAppOwner() {
-      return isSuperAdmin() || (isAuthenticated() && request.auth.token.email.lower() == "calebwhite2@chisd.net" && request.auth.token.email_verified == true);
+      return isSuperAdmin() || (isAuthenticated() && request.auth.token.get('email', '').lower() == "calebwhite2@chisd.net");
     }
 
     function isCoOwner() {
-      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
-      return isAuthenticated() && userDoc.data != null && userDoc.data.role == 'co-owner';
+      let path = /databases/$(database)/documents/users/$(request.auth.uid);
+      return isAuthenticated() && exists(path) && get(path).data.get('role', '') == 'co-owner';
     }
 
     function isAdmin() {
-      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
-      return isAppOwner() || (isAuthenticated() && userDoc.data != null && (userDoc.data.role == 'admin' || userDoc.data.role == 'co-owner' || userDoc.data.role == 'owner'));
+      let path = /databases/$(database)/documents/users/$(request.auth.uid);
+      return isAppOwner() || (isAuthenticated() && exists(path) && get(path).data.get('role', '') in ['admin', 'co-owner', 'owner']);
+    }
+
+    function isBanned() {
+      let path = /databases/$(database)/documents/users/$(request.auth.uid);
+      return isAuthenticated() && !isAppOwner() && exists(path) && get(path).data.get('banned', false) == true;
     }
 
     function isValidEmail(email) {
@@ -82,17 +87,24 @@ service cloud.firestore {
       return url is string && (url.matches("^https://.*") || url.matches("^http://.*"));
     }
 
+    function isCleanMessage(text) {
+      let lowerText = text.lower();
+      // Using (?s) to allow . to match newlines
+      return !(lowerText.matches("(?s).*(beaner|esex|negro|nigger|niggers|p0rn|porn|sex).*"));
+    }
+
     // ===============================================================
     // Domain Validators
     // ===============================================================
 
     function isValidUser(data) {
       return data.keys().hasAll(['uid', 'email', 'role', 'createdAt']) &&
-             data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'role', 'createdAt', 'favorites', 'theme', 'customThemes', 'customLogo']) &&
+             data.keys().hasOnly(['uid', 'email', 'displayName', 'photoURL', 'role', 'banned', 'createdAt', 'favorites', 'theme', 'customThemes', 'customLogo']) &&
              data.uid == request.auth.uid &&
              data.email == request.auth.token.email &&
              isValidEmail(data.email) &&
              data.role in ['admin', 'co-owner', 'owner', 'user', 'donator'] &&
+             (!('banned' in data) || data.banned is bool) &&
              (!('photoURL' in data) || data.photoURL == null || isValidUrl(data.photoURL)) &&
              (!('favorites' in data) || data.favorites is list) &&
              (!('theme' in data) || data.theme is string) &&
@@ -130,16 +142,16 @@ service cloud.firestore {
     // ===============================================================
 
     function isAllowedAdmin() {
-      return request.auth.token.email != null && exists(/databases/$(database)/documents/allowed_admins/$(request.auth.token.email.lower()));
+      return isAuthenticated() && request.auth.token.get('email', '') != '' && exists(/databases/$(database)/documents/allowed_admins/$(request.auth.token.get('email', '').lower()));
     }
 
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin() || isCoOwner();
+      allow read: if (isOwner(userId) || isAdmin() || isCoOwner()) && !isBanned();
       allow create: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == 'user' || isSuperAdmin() || isAllowedAdmin() || isAppOwner());
-      allow update: if (isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role) ||
-                    (isSuperAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role']) && request.resource.data.role in ['admin', 'co-owner', 'user', 'donator']) ||
-                    (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role']) && request.resource.data.role == 'donator') ||
-                    (isOwner(userId) && (isAllowedAdmin() || isAppOwner()) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role']) && (request.resource.data.role == 'admin' || request.resource.data.role == 'co-owner'));
+      allow update: if (isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role && (!('banned' in request.resource.data) || request.resource.data.banned == resource.data.banned) && !isBanned()) ||
+                    (isSuperAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'banned']) && request.resource.data.role in ['admin', 'co-owner', 'user', 'donator']) ||
+                    (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'banned']) && (request.resource.data.role == 'donator' || request.resource.data.role == resource.data.role)) ||
+                    (isOwner(userId) && (isAllowedAdmin() || isAppOwner()) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role']) && (request.resource.data.role == 'admin' || request.resource.data.role == 'co-owner') && !isBanned());
     }
 
     match /allowed_admins/{docId} {
@@ -149,30 +161,30 @@ service cloud.firestore {
     }
 
     match /site_announcements/{announcementId} {
-      allow read: if true;
-      allow create, update: if isAdmin() && isValidAnnouncement(request.resource.data);
-      allow delete: if isAdmin();
+      allow read: if !isBanned();
+      allow create, update: if isAdmin() && isValidAnnouncement(request.resource.data) && !isBanned();
+      allow delete: if isAdmin() && !isBanned();
     }
 
     match /suggestions/{suggestionId} {
-      allow read: if isAdmin() || isOwner(resource.data.userId);
-      allow create: if isAuthenticated() && isValidSuggestion(request.resource.data, true) && request.resource.data.status == 'pending';
-      allow update: if isAdmin() && isValidSuggestion(request.resource.data, false) && request.resource.data.userId == resource.data.userId && request.resource.data.userEmail == resource.data.userEmail && request.resource.data.text == resource.data.text && request.resource.data.createdAt == resource.data.createdAt;
-      allow delete: if isAdmin();
+      allow read: if (isAdmin() || isOwner(resource.data.userId)) && !isBanned();
+      allow create: if isAuthenticated() && isValidSuggestion(request.resource.data, true) && request.resource.data.status == 'pending' && !isBanned();
+      allow update: if isAdmin() && isValidSuggestion(request.resource.data, false) && request.resource.data.userId == resource.data.userId && request.resource.data.userEmail == resource.data.userEmail && request.resource.data.text == resource.data.text && request.resource.data.createdAt == resource.data.createdAt && !isBanned();
+      allow delete: if isAdmin() && !isBanned();
     }
 
     match /chat/{message} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() < 1000 && request.resource.data.displayName is string;
-      allow update: if isAuthenticated() && request.auth.uid == resource.data.uid && request.resource.data.uid == resource.data.uid && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() < 1000 && request.resource.data.displayName == resource.data.displayName && request.resource.data.createdAt == resource.data.createdAt;
-      allow delete: if isAuthenticated() && request.auth.uid == resource.data.uid;
+      allow read: if isAuthenticated() && !isBanned();
+      allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() < 1000 && request.resource.data.displayName is string && !isBanned() && (isAdmin() || isCleanMessage(request.resource.data.text));
+      allow update: if isAuthenticated() && request.auth.uid == resource.data.uid && request.resource.data.uid == resource.data.uid && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() < 1000 && request.resource.data.displayName == resource.data.displayName && request.resource.data.createdAt == resource.data.createdAt && !isBanned() && (isAdmin() || isCleanMessage(request.resource.data.text));
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.uid && !isBanned();
     }
 
     match /admin_chat/{message} {
-      allow read: if isAdmin();
-      allow create: if isAdmin() && request.resource.data.uid == request.auth.uid && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() < 1000 && request.resource.data.displayName is string;
-      allow update: if isAdmin() && request.auth.uid == resource.data.uid && request.resource.data.uid == resource.data.uid && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() < 1000 && request.resource.data.displayName == resource.data.displayName && request.resource.data.createdAt == resource.data.createdAt;
-      allow delete: if isAdmin();
+      allow read: if isAdmin() && !isBanned();
+      allow create: if isAdmin() && request.resource.data.uid == request.auth.uid && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() < 1000 && request.resource.data.displayName is string && !isBanned();
+      allow update: if isAdmin() && request.auth.uid == resource.data.uid && request.resource.data.uid == resource.data.uid && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() < 1000 && request.resource.data.displayName == resource.data.displayName && request.resource.data.createdAt == resource.data.createdAt && !isBanned();
+      allow delete: if isAdmin() && !isBanned();
     }
 
     match /test/connection {

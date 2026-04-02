@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Trash2, Edit2, Save, AlertCircle, CheckCircle2, ShieldCheck, Users, Megaphone, Activity, Send, Check } from 'lucide-react';
+import { X, Plus, Trash2, Edit2, Save, AlertCircle, CheckCircle2, ShieldCheck, Users, Megaphone, Activity, Send, Check, Ban, UserCheck } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { db, auth, OperationType, handleFirestoreError } from '../firebase';
 import { collection, addDoc, onSnapshot, query, orderBy, deleteDoc, doc, updateDoc, serverTimestamp, Timestamp, setDoc, where, getDocs } from 'firebase/firestore';
@@ -10,6 +10,7 @@ interface User {
   email: string | null;
   displayName: string | null;
   role: 'admin' | 'co-owner' | 'owner' | 'user' | 'donator';
+  banned?: boolean;
   createdAt: Timestamp;
 }
 
@@ -182,6 +183,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
         role: newRole
       });
     } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `users/${uid}`);
+    }
+  };
+
+  const handleToggleBan = async (uid: string, currentBanned: boolean) => {
+    try {
+      await updateDoc(doc(db, 'users', uid), {
+        banned: !currentBanned
+      });
+      setSuccess(`User ${!currentBanned ? 'banned' : 'unbanned'} successfully!`);
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError(`Failed to ${!currentBanned ? 'ban' : 'unban'} user.`);
       handleFirestoreError(err, OperationType.UPDATE, `users/${uid}`);
     }
   };
@@ -478,17 +492,42 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <select 
-                      value={user.role}
-                      onChange={(e) => handleUpdateUserRole(user.uid, e.target.value as any)}
-                      className="bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white focus:outline-none focus:border-accent/50 transition-all cursor-pointer"
-                    >
-                      <option value="user">User</option>
-                      <option value="admin">Admin</option>
-                      <option value="co-owner">Co-Owner</option>
-                      <option value="owner">Owner</option>
-                      <option value="donator">Donator</option>
-                    </select>
+                    <div className="flex flex-col items-end gap-2">
+                      <select 
+                        value={user.role}
+                        onChange={(e) => handleUpdateUserRole(user.uid, e.target.value as any)}
+                        className="bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white focus:outline-none focus:border-accent/50 transition-all cursor-pointer"
+                      >
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                        <option value="co-owner">Co-Owner</option>
+                        <option value="owner">Owner</option>
+                        <option value="donator">Donator</option>
+                      </select>
+                      
+                      {user.email?.toLowerCase() !== 'darkfn1234567890@gmail.com' && user.email?.toLowerCase() !== 'whitecaleb888@gmail.com' && (
+                        <button
+                          onClick={() => handleToggleBan(user.uid, !!user.banned)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                            user.banned 
+                              ? 'bg-green-500/10 text-green-500 hover:bg-green-500/20' 
+                              : 'bg-red-500/10 text-red-500 hover:bg-red-500/20'
+                          }`}
+                        >
+                          {user.banned ? (
+                            <>
+                              <UserCheck size={12} />
+                              Unban
+                            </>
+                          ) : (
+                            <>
+                              <Ban size={12} />
+                              Ban User
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))

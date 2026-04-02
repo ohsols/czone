@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { db, auth } from '../firebase';
+import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import EmojiPicker, { Theme as EmojiTheme } from 'emoji-picker-react';
-import { Send, Trash2, Edit2, Check, X, ShieldCheck, Smile, DollarSign, MessageSquare } from 'lucide-react';
+import { Send, Trash2, Edit2, Check, X, ShieldCheck, Smile, DollarSign, MessageSquare, AlertCircle } from 'lucide-react';
 
 interface ChatRoomProps {
   collectionName?: string;
@@ -11,9 +11,14 @@ interface ChatRoomProps {
   isSuperAdmin?: boolean;
 }
 
+const BANNED_KEYWORDS = [
+  'beaner', 'esex', 'negro', 'nigger', 'niggers', 'p0rn', 'porn', 'sex'
+];
+
 const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = false, isSuperAdmin = false }) => {
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [replyTo, setReplyTo] = useState<{ id: string, text: string, displayName: string } | null>(null);
@@ -35,6 +40,10 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
     const q = query(collection(db, collectionName), orderBy('createdAt', 'asc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setMessages(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (err) => {
+      console.error("ChatRoom onSnapshot error:", err);
+      setError("Failed to load messages. Please check your permissions.");
+      handleFirestoreError(err, OperationType.LIST, collectionName);
     });
     return unsubscribe;
   }, [collectionName]);
@@ -47,20 +56,40 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
     e.preventDefault();
     if (!newMessage.trim() || !auth.currentUser) return;
 
-    await addDoc(collection(db, collectionName), {
-      text: newMessage,
-      createdAt: serverTimestamp(),
-      uid: auth.currentUser.uid,
-      displayName: auth.currentUser.displayName || 'Anonymous',
-      role: isSuperAdmin ? 'super-admin' : (isAdmin ? 'admin' : 'user'),
-      replyTo: replyTo ? { id: replyTo.id, text: replyTo.text, displayName: replyTo.displayName } : null,
-    });
-    setNewMessage('');
-    setReplyTo(null);
+    const containsBanned = BANNED_KEYWORDS.some(word => 
+      newMessage.toLowerCase().includes(word.toLowerCase())
+    );
+
+    if (containsBanned && !isAdmin && !isSuperAdmin) {
+      setError('Your message contains prohibited language.');
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+
+    try {
+      await addDoc(collection(db, collectionName), {
+        text: newMessage,
+        createdAt: serverTimestamp(),
+        uid: auth.currentUser.uid,
+        displayName: auth.currentUser.displayName || 'Anonymous',
+        role: isSuperAdmin ? 'super-admin' : (isAdmin ? 'admin' : 'user'),
+        replyTo: replyTo ? { id: replyTo.id, text: replyTo.text, displayName: replyTo.displayName } : null,
+      });
+      setNewMessage('');
+      setReplyTo(null);
+    } catch (err) {
+      setError("Failed to send message. You might be using prohibited language.");
+      setTimeout(() => setError(null), 3000);
+      handleFirestoreError(err, OperationType.CREATE, collectionName);
+    }
   };
 
   const deleteMessage = async (id: string) => {
-    await deleteDoc(doc(db, collectionName, id));
+    try {
+      await deleteDoc(doc(db, collectionName, id));
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `${collectionName}/${id}`);
+    }
   };
 
   const startEdit = (id: string, text: string) => {
@@ -69,9 +98,25 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
   };
 
   const saveEdit = async (id: string) => {
-    await updateDoc(doc(db, collectionName, id), { text: editValue });
-    setEditingMessageId(null);
-    setEditValue('');
+    const containsBanned = BANNED_KEYWORDS.some(word => 
+      editValue.toLowerCase().includes(word.toLowerCase())
+    );
+
+    if (containsBanned && !isAdmin && !isSuperAdmin) {
+      setError('Your message contains prohibited language.');
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, collectionName, id), { text: editValue });
+      setEditingMessageId(null);
+      setEditValue('');
+    } catch (err) {
+      setError("Failed to update message.");
+      setTimeout(() => setError(null), 3000);
+      handleFirestoreError(err, OperationType.UPDATE, `${collectionName}/${id}`);
+    }
   };
 
   return (
@@ -90,6 +135,19 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
             <p className="text-[10px] text-text-secondary font-bold uppercase tracking-widest">Live Community Discussion</p>
           </div>
         </div>
+        <AnimatePresence>
+          {error && (
+            <motion.div 
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
+              className="bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-1.5 flex items-center gap-2 text-red-500 text-[10px] font-black uppercase tracking-widest"
+            >
+              <AlertCircle size={12} />
+              {error}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
       <div className="flex-1 overflow-y-auto space-y-4 mb-4 custom-scrollbar">
         {messages.map((msg) => (
@@ -114,7 +172,7 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
               <div className="flex justify-between items-center mb-1">
                 <p className="text-xs font-bold opacity-70">{msg.displayName}</p>
                 <p className="text-[10px] opacity-50 ml-2">
-                  {msg.createdAt?.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  {msg.createdAt ? msg.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '...'}
                 </p>
               </div>
               {msg.replyTo && (
