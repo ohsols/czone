@@ -72,7 +72,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
   const [userSearchQuery, setUserSearchQuery] = useState('');
 
   useEffect(() => {
-    const q = query(collection(db, 'site_announcements'), orderBy('createdAt', 'desc'), limit(10000));
+    const q = query(collection(db, 'site_announcements'), orderBy('createdAt', 'desc'), limit(1000));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -83,7 +83,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
       handleFirestoreError(err, OperationType.LIST, 'site_announcements');
     });
 
-    const qSuggestions = query(collection(db, 'suggestions'), orderBy('createdAt', 'desc'), limit(10000));
+    const qSuggestions = query(collection(db, 'suggestions'), orderBy('createdAt', 'desc'), limit(1000));
     const unsubscribeSuggestions = onSnapshot(qSuggestions, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -94,7 +94,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
       handleFirestoreError(err, OperationType.LIST, 'suggestions');
     });
 
-    const qAdmins = query(collection(db, 'allowed_admins'), orderBy('createdAt', 'desc'), limit(10000));
+    const qAdmins = query(collection(db, 'allowed_admins'), orderBy('createdAt', 'desc'), limit(1000));
     const unsubscribeAdmins = onSnapshot(qAdmins, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -105,7 +105,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
       handleFirestoreError(err, OperationType.LIST, 'allowed_admins');
     });
 
-    const qUsers = query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(10000));
+    const qUsers = query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(1000));
     const unsubscribeUsers = onSnapshot(qUsers, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
         uid: doc.id,
@@ -116,7 +116,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
       handleFirestoreError(err, OperationType.LIST, 'users');
     });
 
-    const qAppeals = query(collection(db, 'appeals'), orderBy('createdAt', 'desc'), limit(10000));
+    const qAppeals = query(collection(db, 'appeals'), orderBy('createdAt', 'desc'), limit(1000));
     const unsubscribeAppeals = onSnapshot(qAppeals, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -552,6 +552,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
                         <option value="co-owner">Co-Owner</option>
                         <option value="owner">Owner</option>
                         <option value="donator">Donator</option>
+                        <option value="tester">Tester</option>
                       </select>
                       
                       {user.email?.toLowerCase() !== 'darkfn1234567890@gmail.com' && user.email?.toLowerCase() !== 'whitecaleb888@gmail.com' && (

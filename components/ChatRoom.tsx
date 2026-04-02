@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, deleteDoc, updateDoc, limit } from 'firebase/firestore';
 import EmojiPicker, { Theme as EmojiTheme } from 'emoji-picker-react';
-import { Send, Trash2, Edit2, Check, X, ShieldCheck, Smile, DollarSign, MessageSquare, AlertCircle } from 'lucide-react';
+import { Send, Trash2, Edit2, Check, X, ShieldCheck, Smile, DollarSign, MessageSquare, AlertCircle, Zap } from 'lucide-react';
 
 interface ChatRoomProps {
   collectionName?: string;
@@ -189,7 +189,7 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
       >
         {messages.map((msg) => (
           <div key={msg.id} className={`flex flex-col ${msg.uid === auth.currentUser?.uid ? 'items-end' : 'items-start'}`}>
-            {msg.role && (msg.role === 'admin' || msg.role === 'super-admin' || msg.role === 'donator') && (
+            {msg.role && (msg.role === 'admin' || msg.role === 'super-admin' || msg.role === 'donator' || msg.role === 'tester') && (
               <motion.div 
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -198,11 +198,13 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
                     ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-black' 
                     : msg.role === 'donator'
                     ? 'bg-green-500 text-white'
+                    : msg.role === 'tester'
+                    ? 'bg-gradient-to-r from-purple-500 via-pink-500 to-red-500 text-white animate-pulse shadow-[0_0_10px_rgba(236,72,153,0.5)]'
                     : 'bg-accent text-white'
                 }`}
               >
-                {msg.role === 'donator' ? <DollarSign size={10} /> : <ShieldCheck size={10} />}
-                {msg.role === 'super-admin' ? 'Owner' : (msg.role === 'donator' ? 'Donator 💵' : 'Admin')}
+                {msg.role === 'donator' ? <DollarSign size={10} /> : (msg.role === 'tester' ? <Zap size={10} /> : <ShieldCheck size={10} />)}
+                {msg.role === 'super-admin' ? 'Owner' : (msg.role === 'donator' ? 'Donator 💵' : (msg.role === 'tester' ? 'Tester ✨' : 'Admin'))}
               </motion.div>
             )}
             <div className={`max-w-[70%] p-3 rounded-2xl ${msg.uid === auth.currentUser?.uid ? 'bg-accent text-white' : 'bg-white/5 text-neutral-300'}`}>

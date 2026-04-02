@@ -12,7 +12,7 @@ service cloud.firestore {
     //   - email: string (required, email) - The user's email address
     //   - displayName: string (optional) - The user's display name
     //   - photoURL: string (optional, url) - The user's profile photo URL
-    //   - role: string (required, enum: ['admin', 'co-owner', 'owner', 'user', 'donator']) - The user's role
+    //   - role: string (required, enum: ['admin', 'co-owner', 'owner', 'user', 'donator', 'tester']) - The user's role
     //   - banned: bool (optional) - Whether the user is banned
     //   - createdAt: timestamp (required) - When the user profile was created
     //   - favorites: list (optional) - User's favorite items
@@ -56,8 +56,8 @@ service cloud.firestore {
 
     function isSuperAdmin() {
       return isAuthenticated() && 
-             (request.auth.token.get('email', '').lower() == "darkfn1234567890@gmail.com" || 
-              request.auth.token.get('email', '').lower() == "whitecaleb888@gmail.com");
+             (request.auth.token.email.lower() == "darkfn1234567890@gmail.com" || 
+              request.auth.token.email.lower() == "whitecaleb888@gmail.com");
     }
 
     function isAppOwner() {
@@ -103,7 +103,7 @@ service cloud.firestore {
              data.uid == request.auth.uid &&
              data.email == request.auth.token.email &&
              isValidEmail(data.email) &&
-             data.role in ['admin', 'co-owner', 'owner', 'user', 'donator'] &&
+             data.role in ['admin', 'co-owner', 'owner', 'user', 'donator', 'tester'] &&
              (!('banned' in data) || data.banned is bool) &&
              (!('photoURL' in data) || data.photoURL == null || isValidUrl(data.photoURL)) &&
              (!('favorites' in data) || data.favorites is list) &&
@@ -137,6 +137,16 @@ service cloud.firestore {
              data.addedBy == request.auth.uid;
     }
 
+    function isValidAppeal(data) {
+      return data.keys().hasAll(['userId', 'userEmail', 'reason', 'status', 'createdAt']) &&
+             data.keys().hasOnly(['userId', 'userEmail', 'reason', 'status', 'createdAt']) &&
+             data.userId == request.auth.uid &&
+             isValidEmail(data.userEmail) &&
+             data.reason is string && data.reason.size() > 0 && data.reason.size() <= 2000 &&
+             data.status == 'pending' &&
+             data.createdAt == request.time;
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -149,8 +159,8 @@ service cloud.firestore {
       allow read: if isOwner(userId) || isAdmin() || isCoOwner();
       allow create: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == 'user' || isSuperAdmin() || isAllowedAdmin() || isAppOwner());
       allow update: if (isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role && (!('banned' in request.resource.data) || request.resource.data.banned == resource.data.banned) && !isBanned()) ||
-                    (isSuperAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'banned']) && request.resource.data.role in ['admin', 'co-owner', 'user', 'donator']) ||
-                    (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'banned']) && (request.resource.data.role == 'donator' || request.resource.data.role == resource.data.role)) ||
+                    (isSuperAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'banned']) && request.resource.data.role in ['admin', 'co-owner', 'user', 'donator', 'tester']) ||
+                    (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'banned']) && (request.resource.data.role in ['donator', 'tester'] || request.resource.data.role == resource.data.role)) ||
                     (isOwner(userId) && (isAllowedAdmin() || isAppOwner()) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role']) && (request.resource.data.role == 'admin' || request.resource.data.role == 'co-owner') && !isBanned());
     }
 
@@ -188,8 +198,9 @@ service cloud.firestore {
     }
 
     match /appeals/{appealId} {
-      allow read: if (isAdmin() || (isAuthenticated() && request.auth.uid == resource.data.userId));
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid && request.resource.data.status == 'pending' && request.resource.data.reason is string && request.resource.data.reason.size() > 0 && request.resource.data.reason.size() <= 2000;
+      allow list: if isAdmin();
+      allow get: if isAdmin() || (isAuthenticated() && request.auth.uid == resource.data.userId);
+      allow create: if isAuthenticated() && isValidAppeal(request.resource.data);
       allow update: if isAdmin() && request.resource.data.userId == resource.data.userId && request.resource.data.reason == resource.data.reason && request.resource.data.status in ['pending', 'approved', 'denied'];
       allow delete: if isAdmin();
     }

@@ -25,10 +25,17 @@ const AppealModal: React.FC<AppealModalProps> = ({ isOpen, onClose, userEmail, u
     setError(null);
 
     try {
+      const currentUserId = userId || auth.currentUser?.uid;
+      const currentUserEmail = userEmail || auth.currentUser?.email;
+
+      if (!currentUserId || !currentUserEmail) {
+        throw new Error("User identification missing. Please try logging in again.");
+      }
+
       await addDoc(collection(db, 'appeals'), {
-        userId,
-        userEmail,
-        reason,
+        userId: currentUserId,
+        userEmail: currentUserEmail,
+        reason: reason.trim(),
         status: 'pending',
         createdAt: serverTimestamp(),
       });
