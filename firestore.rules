@@ -57,12 +57,11 @@ service cloud.firestore {
     function isSuperAdmin() {
       return isAuthenticated() && 
              (request.auth.token.get('email', '').lower() == "darkfn1234567890@gmail.com" || 
-              request.auth.token.get('email', '').lower() == "whitecaleb888@gmail.com" ||
-              request.auth.token.get('email', '').lower() == "calebwhite2@chisd.net");
+              request.auth.token.get('email', '').lower() == "whitecaleb888@gmail.com");
     }
 
     function isAppOwner() {
-      return isSuperAdmin() || (isAuthenticated() && request.auth.token.get('email', '').lower() == "calebwhite2@chisd.net");
+      return isSuperAdmin();
     }
 
     function isCoOwner() {

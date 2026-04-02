@@ -23,6 +23,7 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
   const [editValue, setEditValue] = useState('');
   const [replyTo, setReplyTo] = useState<{ id: string, text: string, displayName: string } | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [banConfirm, setBanConfirm] = useState<{ uid: string, displayName: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
 
@@ -120,6 +121,21 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
     }
   };
 
+  const handleBanUser = async () => {
+    if (!banConfirm || !isSuperAdmin) return;
+    
+    try {
+      await updateDoc(doc(db, 'users', banConfirm.uid), { banned: true });
+      setError(`User ${banConfirm.displayName} has been banned.`);
+      setTimeout(() => setError(null), 3000);
+      setBanConfirm(null);
+    } catch (err) {
+      console.error("Error banning user:", err);
+      setError("Failed to ban user.");
+      handleFirestoreError(err, OperationType.UPDATE, `users/${banConfirm.uid}`);
+    }
+  };
+
   return (
     <div className="flex flex-col h-[950px] max-h-[95vh] bg-bg border border-white/5 rounded-2xl p-4 shadow-2xl relative overflow-hidden">
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
@@ -171,7 +187,13 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
             )}
             <div className={`max-w-[70%] p-3 rounded-2xl ${msg.uid === auth.currentUser?.uid ? 'bg-accent text-white' : 'bg-white/5 text-neutral-300'}`}>
               <div className="flex justify-between items-center mb-1">
-                <p className="text-xs font-bold opacity-70">{msg.displayName}</p>
+                <p 
+                  className={`text-xs font-bold opacity-70 ${isSuperAdmin && msg.uid !== auth.currentUser?.uid ? 'cursor-pointer hover:text-red-500 transition-colors' : ''}`}
+                  onClick={() => isSuperAdmin && msg.uid !== auth.currentUser?.uid && setBanConfirm({ uid: msg.uid, displayName: msg.displayName })}
+                  title={isSuperAdmin && msg.uid !== auth.currentUser?.uid ? "Click to ban user" : ""}
+                >
+                  {msg.displayName}
+                </p>
                 <p className="text-[10px] opacity-50 ml-2">
                   {msg.createdAt ? msg.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '...'}
                 </p>
@@ -262,6 +284,45 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
           <Send size={18} />
         </button>
       </form>
+
+      <AnimatePresence>
+        {banConfirm && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-neutral-900 border border-red-500/30 rounded-3xl p-8 max-w-sm w-full text-center shadow-2xl"
+            >
+              <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center text-red-500 mx-auto mb-6">
+                <AlertCircle size={32} />
+              </div>
+              <h3 className="text-xl font-black italic uppercase tracking-tighter text-white mb-2">Ban User?</h3>
+              <p className="text-neutral-400 text-sm mb-8">
+                Are you sure you want to ban <span className="text-white font-bold">{banConfirm.displayName}</span>? This will prevent them from using the platform.
+              </p>
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setBanConfirm(null)}
+                  className="flex-1 px-6 py-3 rounded-xl bg-white/5 text-white font-bold uppercase tracking-widest text-xs hover:bg-white/10 transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleBanUser}
+                  className="flex-1 px-6 py-3 rounded-xl bg-red-500 text-white font-bold uppercase tracking-widest text-xs hover:bg-red-600 transition-all shadow-lg shadow-red-500/20"
+                >
+                  Confirm Ban
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
     </div>
   );

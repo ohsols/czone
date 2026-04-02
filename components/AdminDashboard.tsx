@@ -505,7 +505,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
                         <option value="donator">Donator</option>
                       </select>
                       
-                      {user.email?.toLowerCase() !== 'calebwhite2@chisd.net' && (
+                      {user.email?.toLowerCase() !== 'darkfn1234567890@gmail.com' && user.email?.toLowerCase() !== 'whitecaleb888@gmail.com' && (
                         <button
                           onClick={() => handleToggleBan(user.uid, !!user.banned)}
                           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
