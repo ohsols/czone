@@ -207,6 +207,29 @@ const App: React.FC = () => {
   const [uploads, setUploads] = useState<any[]>([]);
 
   useEffect(() => {
+    if (!isAuthReady) return;
+
+    const path = window.location.pathname.substring(1).toLowerCase().replace('-', ' ');
+    
+    if (user) {
+      // If logged in and on root or landing on default 'donate', go to chat
+      if (path === '' || (path === 'donate' && activeCategory === 'donate')) {
+        // Only redirect if it's the initial load or they just logged in
+        // We check activeCategory === 'donate' to avoid redirecting if they explicitly navigated there
+        // but since this effect only runs on user/isAuthReady change, it's mostly for initial load/login
+        navigate('chat');
+      }
+    } else {
+      // If not logged in and on root or landing on 'chat', go to donate
+      if (path === '' || path === 'chat') {
+        navigate('donate');
+        // Automatically open auth modal for guests
+        setIsAuthModalOpen(true);
+      }
+    }
+  }, [user, isAuthReady]);
+
+  useEffect(() => {
     if (!user || !isAuthReady) return;
 
     const q = query(collection(db, 'uploads'), orderBy('createdAt', 'desc'), limit(50));
