@@ -207,8 +207,8 @@ const App: React.FC = () => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       console.log("Auth state changed:", currentUser?.email);
       setUser(currentUser);
-      setIsAdmin(currentUser?.email === 'darkfn1234567890@gmail.com' || currentUser?.email === 'whitecaleb888@gmail.com')
-      setIsSuperAdmin(currentUser?.email === 'darkfn1234567890@gmail.com' || currentUser?.email === 'whitecaleb888@gmail.com')
+      setIsAdmin(currentUser?.email === 'darkfn1234567890@gmail.com')
+      setIsSuperAdmin(currentUser?.email === 'darkfn1234567890@gmail.com')
       setIsAuthReady(true);
       if (currentUser) {
         setIsAuthModalOpen(false);
@@ -225,61 +225,58 @@ const App: React.FC = () => {
     if (!user || !isAuthReady) return;
 
     const userDocRef = doc(db, 'users', user.uid);
-    const fetchUser = async () => {
-      try {
-        const docSnap = await getDoc(userDocRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          if (data.customLogo) {
-            setCustomLogo(data.customLogo);
-            localStorage.setItem('chillzone_custom_logo', data.customLogo);
-          }
-          if (data.favorites) {
-            setFavorites(data.favorites);
-            localStorage.setItem('chillzone_favorites', JSON.stringify(data.favorites));
-          }
-          if (data.theme) {
-            localStorage.setItem('custom_theme_id', data.theme);
-            if (data.customThemes) {
-              localStorage.setItem('custom_themes', data.customThemes);
-            }
-            // Apply theme
-            const savedThemes = localStorage.getItem('custom_themes');
-            const customThemes = savedThemes ? JSON.parse(savedThemes) : { ...defaultThemes };
-            const activeTheme = customThemes[data.theme] || defaultThemes.chillzone;
-            
-            const root = document.documentElement;
-            root.style.setProperty('--bg', activeTheme.colors.bg);
-            root.style.setProperty('--text-primary', activeTheme.colors.textPrimary);
-            root.style.setProperty('--surface', activeTheme.colors.surface);
-            root.style.setProperty('--border', activeTheme.colors.border);
-            root.style.setProperty('--accent', activeTheme.colors.accent);
-            root.style.setProperty('--surface-hover', activeTheme.colors.surfaceHover);
-            
-            const hexToRgb = (hex: string) => {
-              const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-              return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : '255, 0, 0';
-            };
-            
-            const rgb = hexToRgb(activeTheme.colors.accent);
-            root.style.setProperty('--accent-glow', `rgba(${rgb}, 0.3)`);
-            root.style.setProperty('--accent-glow-dim', `rgba(${rgb}, 0.1)`);
-            root.dataset.theme = data.theme;
-          }
-          
-          // Update admin status based on role in database
-          const email = user.email?.toLowerCase();
-          const isAppOwner = email === 'darkfn1234567890@gmail.com' || email === 'whitecaleb888@gmail.com';
-          const isSuperOwner = email === 'darkfn1234567890@gmail.com' || email === 'whitecaleb888@gmail.com';
-          setIsAdmin(isAppOwner || data.role === 'admin' || data.role === 'co-owner' || data.role === 'owner');
-          setIsSuperAdmin(isSuperOwner);
-          setIsBanned(!!data.banned);
+    const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.customLogo) {
+          setCustomLogo(data.customLogo);
+          localStorage.setItem('chillzone_custom_logo', data.customLogo);
         }
-      } catch (err) {
-        handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
+        if (data.favorites) {
+          setFavorites(data.favorites);
+          localStorage.setItem('chillzone_favorites', JSON.stringify(data.favorites));
+        }
+        if (data.theme) {
+          localStorage.setItem('custom_theme_id', data.theme);
+          if (data.customThemes) {
+            localStorage.setItem('custom_themes', data.customThemes);
+          }
+          // Apply theme
+          const savedThemes = localStorage.getItem('custom_themes');
+          const customThemes = savedThemes ? JSON.parse(savedThemes) : { ...defaultThemes };
+          const activeTheme = customThemes[data.theme] || defaultThemes.chillzone;
+          
+          const root = document.documentElement;
+          root.style.setProperty('--bg', activeTheme.colors.bg);
+          root.style.setProperty('--text-primary', activeTheme.colors.textPrimary);
+          root.style.setProperty('--surface', activeTheme.colors.surface);
+          root.style.setProperty('--border', activeTheme.colors.border);
+          root.style.setProperty('--accent', activeTheme.colors.accent);
+          root.style.setProperty('--surface-hover', activeTheme.colors.surfaceHover);
+          
+          const hexToRgb = (hex: string) => {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : '255, 0, 0';
+          };
+          
+          const rgb = hexToRgb(activeTheme.colors.accent);
+          root.style.setProperty('--accent-glow', `rgba(${rgb}, 0.3)`);
+          root.style.setProperty('--accent-glow-dim', `rgba(${rgb}, 0.1)`);
+          root.dataset.theme = data.theme;
+        }
+        
+        // Update admin status based on role in database
+        const email = user.email?.toLowerCase();
+        const isAppOwner = email === 'darkfn1234567890@gmail.com';
+        const isSuperOwner = email === 'darkfn1234567890@gmail.com';
+        setIsAdmin(isAppOwner || data.role === 'admin' || data.role === 'co-owner' || data.role === 'owner');
+        setIsSuperAdmin(isSuperOwner);
+        setIsBanned(!!data.banned);
       }
-    };
-    fetchUser();
+    }, (err) => {
+      handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
+    });
+    return () => unsubscribe();
   }, [user, isAuthReady]);
 
   useEffect(() => {

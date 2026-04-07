@@ -165,20 +165,42 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
     }
   };
 
-  const handleDemoteAll = async () => {
-    if (!window.confirm('Are you sure you want to demote all admins/co-owners/owners to users? This cannot be undone.')) return;
+  const handleRemoveAllAdmins = async () => {
+    if (!window.confirm('Are you sure you want to remove all other admins and reset all user roles to "user"? This cannot be undone.')) return;
     try {
+      console.log('Starting admin removal...');
+      // 1. Clear allowed_admins
+      const adminsRef = collection(db, 'allowed_admins');
+      const adminSnapshot = await getDocs(adminsRef);
+      console.log(`Found ${adminSnapshot.docs.length} allowed admins to remove.`);
+      const deletePromises = adminSnapshot.docs.map(docSnap => deleteDoc(doc(db, 'allowed_admins', docSnap.id)));
+      await Promise.all(deletePromises);
+      setAllowedAdmins([]);
+      console.log('Allowed admins cleared.');
+
+      // 2. Reset all users to 'user' role except super admin
       const usersRef = collection(db, 'users');
-      const querySnapshot = await getDocs(usersRef);
-      const updatePromises = querySnapshot.docs
-        .filter(docSnap => docSnap.data().role === 'admin' || docSnap.data().role === 'co-owner' || docSnap.data().role === 'owner')
-        .map(docSnap => setDoc(doc(db, 'users', docSnap.id), { role: 'user' }, { merge: true }));
+      const userSnapshot = await getDocs(usersRef);
+      console.log(`Found ${userSnapshot.docs.length} total users.`);
+      const updatePromises = userSnapshot.docs
+        .filter(docSnap => docSnap.data().email?.toLowerCase() !== 'darkfn1234567890@gmail.com' && 
+                           (docSnap.data().role === 'admin' || docSnap.data().role === 'co-owner' || docSnap.data().role === 'owner'))
+        .map(docSnap => {
+          console.log(`Demoting user: ${docSnap.data().email} (${docSnap.id})`);
+          return setDoc(doc(db, 'users', docSnap.id), { role: 'user' }, { merge: true });
+        });
       await Promise.all(updatePromises);
-      setSuccess('All admins/co-owners/owners demoted successfully!');
+      console.log('Users demoted.');
+      
+      // Refresh users list
+      setUsers(prev => prev.map(u => u.email?.toLowerCase() !== 'darkfn1234567890@gmail.com' && (u.role === 'admin' || u.role === 'co-owner' || u.role === 'owner') ? {...u, role: 'user'} : u));
+
+      setSuccess('All other admins removed and roles reset successfully!');
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
-      setError('Failed to demote users.');
-      handleFirestoreError(err, OperationType.UPDATE, 'users');
+      console.error('Error removing admins:', err);
+      setError('Failed to remove admins.');
+      handleFirestoreError(err, OperationType.UPDATE, 'users/allowed_admins');
     }
   };
 
@@ -489,8 +511,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-black uppercase tracking-widest text-neutral-500">User Management</h3>
               {isSuperAdmin && (
-                <button onClick={handleDemoteAll} className="bg-red-500/10 text-red-500 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-red-500/20 transition-all">
-                  Demote All Admins/Owners
+                <button onClick={handleRemoveAllAdmins} className="bg-red-500/10 text-red-500 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-red-500/20 transition-all">
+                  Remove All Admins
                 </button>
               )}
               <div className="flex gap-2">
@@ -672,7 +694,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
             </form>
 
             <div className="space-y-4">
-              <h3 className="text-sm font-black uppercase tracking-widest text-neutral-500">Allowed Admins</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-black uppercase tracking-widest text-neutral-500">Allowed Admins</h3>
+                <button onClick={handleRemoveAllAdmins} className="bg-red-500/10 text-red-500 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-red-500/20 transition-all">
+                  Remove All Admins
+                </button>
+              </div>
               {allowedAdmins.length === 0 ? (
                 <div className="text-center py-12 text-neutral-500 text-sm italic">
                   No additional admins added yet.
