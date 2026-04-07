@@ -13,7 +13,7 @@ import { MOVIES_DATA, ANIME_DATA, MANGA_DATA, TV_DATA, STAFF_DATA, PARTNERS_DATA
 import { useLanguage } from './context/LanguageContext';
 import { auth, logout, db, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, updateDoc, onSnapshot, collection, query, orderBy, limit } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, onSnapshot, collection, query, orderBy, limit, where, getDocs, deleteDoc } from 'firebase/firestore';
 import ChatRoom from './components/ChatRoom';
 import AdminDashboard from './components/AdminDashboard';
 import AuthModal from './components/AuthModal';
@@ -156,8 +156,18 @@ const App: React.FC = () => {
   }, [activeCategory]);
 
   const navigate = (cat: Category) => {
-    window.location.href = '/' + cat.replace(' ', '-');
+    setActiveCategory(cat);
+    const path = '/' + cat.replace(' ', '-');
+    window.history.pushState({}, '', path);
   };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setActiveCategory(getInitialCategory());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Debugging customLogo
   useEffect(() => {
@@ -300,7 +310,7 @@ const App: React.FC = () => {
         const isAdminRole = ['admin', 'co-owner', 'owner'].includes(data.role || '');
         
         setIsSuperAdmin(isSuperAdminUser);
-        setIsAdmin(isSuperAdminUser || isAdminRole || user.email === 'whitecaleb888@gmail.com');
+        setIsAdmin(isSuperAdminUser || isAdminRole);
         setIsBanned(data.banned === true && !isSuperAdminUser);
       }
     }, (err) => {
@@ -563,6 +573,7 @@ const App: React.FC = () => {
             isAdmin={isAdmin}
             isChatCategory={activeCategory === 'chat' || activeCategory === 'admin-chat'}
             isSidebarVisible={isSidebarVisible}
+            onSelect={navigate}
             />
         )}
         

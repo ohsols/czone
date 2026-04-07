@@ -112,6 +112,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
       if (activeTab === 'announcements') {
         const q = query(collection(db, 'site_announcements'), orderBy('createdAt', 'desc'), limit(100));
         unsubscribe = onSnapshot(q, (snapshot) => {
+          console.log(`[AdminDashboard] Announcements snapshot received: ${snapshot.size} docs`);
           setAnnouncements(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Announcement[]);
           setIsLoading(false);
         }, (err) => {
@@ -121,6 +122,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
       } else if (activeTab === 'suggestions') {
         const q = query(collection(db, 'suggestions'), orderBy('createdAt', 'desc'), limit(100));
         unsubscribe = onSnapshot(q, (snapshot) => {
+          console.log(`[AdminDashboard] Suggestions snapshot received: ${snapshot.size} docs`);
           setSuggestions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Suggestion[]);
           setIsLoading(false);
         }, (err) => {
@@ -130,6 +132,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
       } else if (activeTab === 'admins') {
         const q = query(collection(db, 'allowed_admins'), orderBy('createdAt', 'desc'), limit(100));
         unsubscribe = onSnapshot(q, (snapshot) => {
+          console.log(`[AdminDashboard] AllowedAdmins snapshot received: ${snapshot.size} docs`);
           setAllowedAdmins(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AllowedAdmin[]);
           setIsLoading(false);
         }, (err) => {
@@ -139,7 +142,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
       } else if (activeTab === 'users' || activeTab === 'banned') {
         const q = query(collection(db, 'users'), limit(500));
         unsubscribe = onSnapshot(q, (snapshot) => {
-          setUsers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as User[]);
+          console.log(`[AdminDashboard] Users snapshot received: ${snapshot.size} docs`);
+          setUsers(snapshot.docs.map(doc => ({ 
+            uid: doc.id, 
+            role: 'user', // Default role
+            ...doc.data() 
+          })) as User[]);
           setIsLoading(false);
         }, (err) => {
           handleFirestoreError(err, OperationType.LIST, 'users');
@@ -148,6 +156,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
       } else if (activeTab === 'appeals') {
         const q = query(collection(db, 'appeals'), orderBy('createdAt', 'desc'), limit(100));
         unsubscribe = onSnapshot(q, (snapshot) => {
+          console.log(`[AdminDashboard] Appeals snapshot received: ${snapshot.size} docs`);
           setAppeals(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Appeal[]);
           setIsLoading(false);
         }, (err) => {
@@ -257,9 +266,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
       await Promise.all(updatePromises);
       console.log('Users demoted.');
       
-      // Refresh users list
-      setUsers(prev => prev.map(u => u.uid !== superAdminUid && (u.role === 'admin' || u.role === 'co-owner' || u.role === 'owner') ? {...u, role: 'user'} : u));
-
       setSuccess('All other admins removed and roles reset successfully!');
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
@@ -270,7 +276,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
   };
 
   const handleUpdateUserRole = async (uid: string, newRole: 'admin' | 'co-owner' | 'owner' | 'user' | 'donator' | 'tester') => {
+    // Optimistic update
+    setUsers(prev => prev.map(u => u.uid === uid ? { ...u, role: newRole } : u));
+    
     try {
+      console.log(`[AdminDashboard] Updating user ${uid} role to ${newRole}`);
       await updateDoc(doc(db, 'users', uid), {
         role: newRole
       });
@@ -283,7 +293,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
   };
 
   const handleToggleBan = async (uid: string, currentBanned: boolean) => {
+    // Optimistic update
+    setUsers(prev => prev.map(u => u.uid === uid ? { ...u, banned: !currentBanned } : u));
+    
     try {
+      console.log(`[AdminDashboard] Toggling ban for user ${uid} (current: ${currentBanned})`);
       await updateDoc(doc(db, 'users', uid), {
         banned: !currentBanned
       });
@@ -301,6 +315,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
     } catch (err) {
       setError(`Failed to ${!currentBanned ? 'ban' : 'unban'} user.`);
       handleFirestoreError(err, OperationType.UPDATE, `users/${uid}`);
+    }
+  };
+
+  const handleDeleteUser = async (uid: string) => {
+    if (!isSuperAdmin) return;
+    if (!window.confirm('Are you sure you want to PERMANENTLY delete this user? This cannot be undone.')) return;
+    
+    try {
+      console.log(`[AdminDashboard] Deleting user ${uid}`);
+      await deleteDoc(doc(db, 'users', uid));
+      setSuccess('User deleted successfully!');
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      setError('Failed to delete user.');
+      handleFirestoreError(err, OperationType.DELETE, `users/${uid}`);
     }
   };
 
@@ -676,27 +705,40 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
                         )}
                       </select>
                       
-                      {user.uid !== 'HfjrcUIslZPCvNI3fxiQJVK1ebB3' && user.email?.toLowerCase() !== 'whitecaleb888@gmail.com' && (
-                        <button
-                          onClick={() => handleToggleBan(user.uid, !!user.banned)}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-                            user.banned 
-                              ? 'bg-green-500/10 text-green-500 hover:bg-green-500/20' 
-                              : 'bg-red-500/10 text-red-500 hover:bg-red-500/20'
-                          }`}
-                        >
-                          {user.banned ? (
-                            <>
-                              <UserCheck size={12} />
-                              Unban
-                            </>
-                          ) : (
-                            <>
-                              <Ban size={12} />
-                              Ban User
-                            </>
+                      {user.uid !== 'HfjrcUIslZPCvNI3fxiQJVK1ebB3' && (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleToggleBan(user.uid, !!user.banned)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                              user.banned 
+                                ? 'bg-green-500/10 text-green-500 hover:bg-green-500/20' 
+                                : 'bg-red-500/10 text-red-500 hover:bg-red-500/20'
+                            }`}
+                          >
+                            {user.banned ? (
+                              <>
+                                <UserCheck size={12} />
+                                Unban
+                              </>
+                            ) : (
+                              <>
+                                <Ban size={12} />
+                                Ban User
+                              </>
+                            )}
+                          </button>
+                          
+                          {isSuperAdmin && (
+                            <button
+                              onClick={() => handleDeleteUser(user.uid)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all bg-red-600/10 text-red-600 hover:bg-red-600/20"
+                              title="Permanently Delete Account"
+                            >
+                              <Trash2 size={12} />
+                              Delete
+                            </button>
                           )}
-                        </button>
+                        </div>
                       )}
                     </div>
                   </div>

@@ -12,9 +12,10 @@ interface SidebarProps {
   isAdmin?: boolean;
   isChatCategory?: boolean;
   isSidebarVisible?: boolean;
+  onSelect: (id: Category) => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeCategory, logoUrl, onLogoChange, isAdmin, isChatCategory, isSidebarVisible }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeCategory, logoUrl, onLogoChange, isAdmin, isChatCategory, isSidebarVisible, onSelect }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { t } = useLanguage();
   const [isHovered, setIsHovered] = useState(false);
@@ -51,8 +52,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeCategory, logoUrl, onLogoChange
   ];
 
   const handleSelect = (id: Category) => {
-    const path = '/' + id.replace(' ', '-');
-    window.location.href = path;
+    onSelect(id);
   };
 
   return (
