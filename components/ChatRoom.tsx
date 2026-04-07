@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { db, auth, handleFirestoreError, OperationType } from '../firebase';
-import { collection, addDoc, query, orderBy, getDocs, getDoc, serverTimestamp, doc, deleteDoc, updateDoc, setDoc, limit } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, getDocs, getDoc, serverTimestamp, doc, deleteDoc, updateDoc, setDoc, limit, where, onSnapshot } from 'firebase/firestore';
 import EmojiPicker, { Theme as EmojiTheme } from 'emoji-picker-react';
-import { Send, Trash2, Edit2, Check, X, ShieldCheck, Smile, DollarSign, MessageSquare, AlertCircle, Zap, RefreshCw, Ban } from 'lucide-react';
+import { Send, Trash2, Edit2, Check, X, ShieldCheck, Smile, DollarSign, MessageSquare, AlertCircle, Zap, Ban, Loader2 } from 'lucide-react';
 
 interface ChatRoomProps {
   collectionName?: string;
@@ -17,6 +17,7 @@ const BANNED_KEYWORDS = [
 
 const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = false, isSuperAdmin = false }) => {
   const [messages, setMessages] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [newMessage, setNewMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -47,21 +48,19 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const fetchMessages = async () => {
-    try {
-      const q = query(collection(db, collectionName), orderBy('createdAt', 'desc'), limit(100));
-      const snapshot = await getDocs(q);
+  useEffect(() => {
+    const q = query(collection(db, collectionName), orderBy('createdAt', 'desc'), limit(100));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
       const newMessages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).reverse();
       setMessages(newMessages);
-    } catch (err) {
+      setIsLoading(false);
+    }, (err) => {
       console.error("ChatRoom fetch error:", err);
       setError("Failed to load messages. Please check your permissions.");
+      setIsLoading(false);
       handleFirestoreError(err, OperationType.LIST, collectionName);
-    }
-  };
-
-  useEffect(() => {
-    fetchMessages();
+    });
+    return () => unsubscribe();
   }, [collectionName]);
 
   useEffect(() => {
@@ -73,6 +72,22 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !auth.currentUser) return;
+
+    // Check for /clear command
+    if (newMessage.trim() === '/clear' && auth.currentUser.uid === 'HfjrcUIslZPCvNI3fxiQJVK1ebB3') {
+        try {
+            const messagesRef = collection(db, collectionName);
+            const querySnapshot = await getDocs(messagesRef);
+            const deletePromises = querySnapshot.docs.map(docSnap => deleteDoc(doc(db, collectionName, docSnap.id)));
+            await Promise.all(deletePromises);
+            setNewMessage('');
+            return;
+        } catch (err) {
+            setError("Failed to clear chat.");
+            handleFirestoreError(err, OperationType.DELETE, collectionName);
+            return;
+        }
+    }
 
     const containsBanned = BANNED_KEYWORDS.some(word => 
       newMessage.toLowerCase().includes(word.toLowerCase())
@@ -146,7 +161,15 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
     
     try {
       await setDoc(doc(db, 'users', banConfirm.uid), { banned: true }, { merge: true });
-      setError(`User ${banConfirm.displayName} has been banned.`);
+      
+      // Delete all messages from the banned user
+      const messagesRef = collection(db, collectionName);
+      const q = query(messagesRef, where('uid', '==', banConfirm.uid));
+      const querySnapshot = await getDocs(q);
+      const deletePromises = querySnapshot.docs.map(docSnap => deleteDoc(doc(db, collectionName, docSnap.id)));
+      await Promise.all(deletePromises);
+
+      setError(`User ${banConfirm.displayName} has been banned and their messages deleted.`);
       setTimeout(() => setError(null), 3000);
       setBanConfirm(null);
     } catch (err) {
@@ -157,7 +180,7 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
   };
 
   return (
-    <div className="flex flex-col h-[950px] max-h-[95vh] bg-bg border border-white/5 rounded-2xl p-4 shadow-2xl relative overflow-hidden">
+    <div className="flex flex-col h-[800px] max-h-[95vh] bg-bg border border-white/5 rounded-2xl p-4 shadow-2xl relative overflow-hidden">
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
         <div className="absolute -top-20 -right-20 w-[400px] h-[400px] rounded-full opacity-20" style={{ background: 'var(--accent-glow-dim)', filter: 'blur(100px)' }}></div>
       </div>
@@ -172,9 +195,6 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
             <p className="text-[10px] text-text-secondary font-bold uppercase tracking-widest">Live Community Discussion</p>
           </div>
         </div>
-        <button onClick={fetchMessages} className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white transition-all border border-white/5">
-          <RefreshCw size={16} />
-        </button>
         <AnimatePresence>
           {error && (
             <motion.div 
@@ -194,79 +214,92 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto space-y-4 mb-4 custom-scrollbar"
       >
-        {messages.map((msg) => (
-          <div key={msg.id} className={`flex flex-col ${msg.uid === auth.currentUser?.uid ? 'items-end' : 'items-start'}`}>
-            {msg.role && (msg.role === 'admin' || msg.role === 'super-admin' || msg.role === 'donator' || msg.role === 'tester') && msg.uid === 'HfjrcUIslZPCvNI3fxiQJVK1ebB3' && (
-              <motion.div 
-                initial={{ opacity: 0, y: 5 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`mb-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-lg ${
-                  msg.role === 'super-admin' 
-                    ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-black' 
-                    : msg.role === 'donator'
-                    ? 'bg-green-500 text-white'
-                    : msg.role === 'tester'
-                    ? 'bg-gradient-to-r from-purple-500 via-pink-500 to-red-500 text-white animate-pulse shadow-[0_0_10px_rgba(236,72,153,0.5)]'
-                    : 'bg-accent text-white'
-                }`}
-              >
-                {msg.role === 'donator' ? <DollarSign size={10} /> : (msg.role === 'tester' ? <Zap size={10} /> : <ShieldCheck size={10} />)}
-                {msg.role === 'super-admin' ? 'Owner' : (msg.role === 'donator' ? 'Donator 💵' : (msg.role === 'tester' ? 'Tester ✨' : 'Admin'))}
-              </motion.div>
-            )}
-            <div className={`max-w-[70%] p-3 rounded-2xl ${msg.uid === auth.currentUser?.uid ? 'bg-accent text-white' : 'bg-white/5 text-neutral-300'}`}>
-              <div className="flex justify-between items-center mb-1">
-                <p 
-                  className={`text-xs font-bold opacity-70 ${isSuperAdmin && msg.uid !== auth.currentUser?.uid ? 'cursor-pointer hover:text-red-500 transition-colors' : ''}`}
-                  onClick={async () => {
-                    if (isSuperAdmin && msg.uid !== auth.currentUser?.uid) {
-                      const userDoc = await getDoc(doc(db, 'users', msg.uid));
-                      const email = userDoc.exists() ? userDoc.data().email : 'Unknown';
-                      setBanConfirm({ uid: msg.uid, displayName: msg.displayName, email });
-                    }
-                  }}
-                  title={isSuperAdmin && msg.uid !== auth.currentUser?.uid ? "Click to ban user" : ""}
+        {isLoading ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-accent">
+            <Loader2 className="animate-spin mb-4" size={48} />
+            <p className="text-sm font-bold uppercase tracking-widest">Loading messages...</p>
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center text-text-muted opacity-50">
+            <MessageSquare size={48} className="mb-4" />
+            <p className="text-sm font-bold uppercase tracking-widest">No messages yet</p>
+            <p className="text-[10px] mt-1">Be the first to start the conversation!</p>
+          </div>
+        ) : (
+          messages.map((msg) => (
+            <div key={msg.id} className={`flex flex-col ${msg.uid === auth.currentUser?.uid ? 'items-end' : 'items-start'}`}>
+              {msg.role && (msg.role === 'admin' || msg.role === 'super-admin' || msg.role === 'donator' || msg.role === 'tester') && (
+                <motion.div 
+                  initial={{ opacity: 0, y: 5 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={`mb-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest flex items-center gap-1 shadow-lg ${
+                    msg.role === 'super-admin' 
+                      ? 'bg-gradient-to-r from-yellow-400 to-orange-500 text-black' 
+                      : msg.role === 'donator'
+                      ? 'bg-green-500 text-white'
+                      : msg.role === 'tester'
+                      ? 'bg-gradient-to-r from-purple-500 via-pink-500 to-red-500 text-white animate-pulse shadow-[0_0_10px_rgba(236,72,153,0.5)]'
+                      : 'bg-accent text-white'
+                  }`}
                 >
-                  {msg.displayName}
-                </p>
-                <p className="text-[10px] opacity-50 ml-2">
-                  {msg.createdAt ? msg.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '...'}
-                </p>
-              </div>
-              {msg.replyTo && (
-                <div className="bg-white/10 p-2 rounded-lg mb-2 text-xs opacity-70 border-l-2 border-accent">
-                  <p className="font-bold">{msg.replyTo.displayName}</p>
-                  <p className="truncate">{msg.replyTo.text}</p>
-                </div>
+                  {msg.role === 'donator' ? <DollarSign size={10} /> : (msg.role === 'tester' ? <Zap size={10} /> : <ShieldCheck size={10} />)}
+                  {msg.role === 'super-admin' ? 'Owner' : (msg.role === 'donator' ? 'Donator 💵' : (msg.role === 'tester' ? 'Tester ✨' : 'Admin'))}
+                </motion.div>
               )}
-              {editingMessageId === msg.id ? (
-                <div className="flex gap-2">
-                  <input
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    className="bg-black/20 rounded px-2 py-1 text-sm w-full"
-                  />
-                  <button onClick={() => saveEdit(msg.id)}><Check size={14} /></button>
-                  <button onClick={() => setEditingMessageId(null)}><X size={14} /></button>
+              <div className={`max-w-[70%] p-3 rounded-2xl ${msg.uid === auth.currentUser?.uid ? 'bg-accent text-white' : 'bg-white/5 text-neutral-300'}`}>
+                <div className="flex justify-between items-center mb-1">
+                  <p 
+                    className={`text-xs font-bold opacity-70 ${isSuperAdmin && msg.uid !== auth.currentUser?.uid ? 'cursor-pointer hover:text-red-500 transition-colors' : ''}`}
+                    onClick={async () => {
+                      if (isSuperAdmin && msg.uid !== auth.currentUser?.uid) {
+                        const userDoc = await getDoc(doc(db, 'users', msg.uid));
+                        const email = userDoc.exists() ? userDoc.data().email : 'Unknown';
+                        setBanConfirm({ uid: msg.uid, displayName: msg.displayName, email });
+                      }
+                    }}
+                    title={isSuperAdmin && msg.uid !== auth.currentUser?.uid ? "Click to ban user" : ""}
+                  >
+                    {msg.displayName}
+                  </p>
+                  <p className="text-[10px] opacity-50 ml-2">
+                    {msg.createdAt ? msg.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '...'}
+                  </p>
                 </div>
-              ) : (
-                <p className="text-sm">{msg.text}</p>
-              )}
-              <div className="flex gap-2 mt-2 justify-end">
-                <button onClick={() => setReplyTo({ id: msg.id, text: msg.text, displayName: msg.displayName })} className="opacity-50 hover:opacity-100"><MessageSquare size={12} /></button>
-                {isSuperAdmin && msg.uid !== auth.currentUser?.uid && (
-                  <button onClick={() => setBanConfirm({ uid: msg.uid, displayName: msg.displayName, email: 'Direct Ban' })} className="opacity-50 hover:opacity-100 text-red-500"><Ban size={12} /></button>
+                {msg.replyTo && (
+                  <div className="bg-white/10 p-2 rounded-lg mb-2 text-xs opacity-70 border-l-2 border-accent">
+                    <p className="font-bold">{msg.replyTo.displayName}</p>
+                    <p className="truncate">{msg.replyTo.text}</p>
+                  </div>
                 )}
-                {msg.uid === auth.currentUser?.uid && editingMessageId !== msg.id && (
-                  <>
-                    <button onClick={() => startEdit(msg.id, msg.text)} className="opacity-50 hover:opacity-100"><Edit2 size={12} /></button>
-                    <button onClick={() => deleteMessage(msg.id)} className="opacity-50 hover:opacity-100"><Trash2 size={12} /></button>
-                  </>
+                {editingMessageId === msg.id ? (
+                  <div className="flex gap-2">
+                    <input
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      className="bg-black/20 rounded px-2 py-1 text-sm w-full"
+                    />
+                    <button onClick={() => saveEdit(msg.id)}><Check size={14} /></button>
+                    <button onClick={() => setEditingMessageId(null)}><X size={14} /></button>
+                  </div>
+                ) : (
+                  <p className="text-sm">{msg.text}</p>
                 )}
+                <div className="flex gap-2 mt-2 justify-end">
+                  <button onClick={() => setReplyTo({ id: msg.id, text: msg.text, displayName: msg.displayName })} className="opacity-50 hover:opacity-100"><MessageSquare size={12} /></button>
+                  {isSuperAdmin && msg.uid !== auth.currentUser?.uid && (
+                    <button onClick={() => setBanConfirm({ uid: msg.uid, displayName: msg.displayName, email: 'Direct Ban' })} className="opacity-50 hover:opacity-100 text-red-500"><Ban size={12} /></button>
+                  )}
+                  {msg.uid === auth.currentUser?.uid && editingMessageId !== msg.id && (
+                    <>
+                      <button onClick={() => startEdit(msg.id, msg.text)} className="opacity-50 hover:opacity-100"><Edit2 size={12} /></button>
+                      <button onClick={() => deleteMessage(msg.id)} className="opacity-50 hover:opacity-100"><Trash2 size={12} /></button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
         <div ref={messagesEndRef} />
       </div>
       {replyTo && (

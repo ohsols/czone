@@ -177,6 +177,9 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   const errorString = JSON.stringify(errInfo);
   console.error('Firestore Error: ', errorString);
   
+  // Dispatch a custom event so the UI can respond
+  window.dispatchEvent(new CustomEvent('firestore-error', { detail: errInfo }));
+  
   throw new Error(errorString);
 }
 

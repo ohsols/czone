@@ -146,6 +146,15 @@ service cloud.firestore {
              data.createdAt == request.time;
     }
 
+    function isValidUpload(data) {
+      return data.keys().hasAll(['title', 'type', 'driveLink', 'imageLink', 'createdAt']) &&
+             data.keys().hasOnly(['title', 'type', 'driveLink', 'imageLink', 'createdAt']) &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.type in ['movie', 'anime', 'manga', 'tv'] &&
+             isValidUrl(data.driveLink) &&
+             isValidUrl(data.imageLink);
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -183,7 +192,7 @@ service cloud.firestore {
       allow read: if isAuthenticated() && !isBanned();
       allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() < 1000 && request.resource.data.displayName is string && !isBanned() && (isAdmin() || isCleanMessage(request.resource.data.text));
       allow update: if isAuthenticated() && request.auth.uid == resource.data.uid && request.resource.data.uid == resource.data.uid && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() < 1000 && request.resource.data.displayName == resource.data.displayName && request.resource.data.createdAt == resource.data.createdAt && !isBanned() && (isAdmin() || isCleanMessage(request.resource.data.text));
-      allow delete: if isAuthenticated() && request.auth.uid == resource.data.uid && !isBanned();
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.uid || isSuperAdmin()) && !isBanned();
     }
 
     match /admin_chat/{message} {
@@ -203,6 +212,12 @@ service cloud.firestore {
 
     match /test/connection {
       allow read: if true;
+    }
+
+    match /uploads/{uploadId} {
+      allow read: if isAuthenticated() && !isBanned();
+      allow create, update: if isAdmin() && isValidUpload(request.resource.data) && !isBanned();
+      allow delete: if isAdmin() && !isBanned();
     }
   }
 }

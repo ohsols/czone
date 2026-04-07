@@ -13,7 +13,7 @@ import { MOVIES_DATA, ANIME_DATA, MANGA_DATA, TV_DATA, STAFF_DATA, PARTNERS_DATA
 import { useLanguage } from './context/LanguageContext';
 import { auth, logout, db, handleFirestoreError, OperationType } from './firebase';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { doc, getDoc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, onSnapshot, collection, query, orderBy, limit } from 'firebase/firestore';
 import ChatRoom from './components/ChatRoom';
 import AdminDashboard from './components/AdminDashboard';
 import AuthModal from './components/AuthModal';
@@ -142,9 +142,18 @@ const getInitialCategory = (): Category => {
 
 const App: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<Category>(getInitialCategory);
+  const [isPageLoading, setIsPageLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [proxySearch, setProxySearch] = useState('');
   const [customLogo, setCustomLogo] = useState<string>(DEFAULT_LOGO);
+
+  useEffect(() => {
+    setIsPageLoading(true);
+    const timer = setTimeout(() => {
+      setIsPageLoading(false);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [activeCategory]);
 
   // Debugging customLogo
   useEffect(() => {
@@ -181,6 +190,20 @@ const App: React.FC = () => {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [quotaError, setQuotaError] = useState<string | null>(null);
   const { t } = useLanguage();
+  const [uploads, setUploads] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!user || !isAuthReady) return;
+
+    const q = query(collection(db, 'uploads'), orderBy('createdAt', 'desc'), limit(50));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setUploads(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    }, (error) => {
+      console.error("Error listening to uploads:", error);
+      handleFirestoreError(error, OperationType.GET, 'uploads');
+    });
+    return () => unsubscribe();
+  }, [user, isAuthReady]);
 
   useEffect(() => {
     const handleFirestoreErrorEvent = (e: Event) => {
@@ -188,7 +211,7 @@ const App: React.FC = () => {
       const errInfo = customEvent.detail;
       if (errInfo && errInfo.error && (errInfo.error.includes('Quota limit exceeded') || errInfo.error.includes('Quota exceeded'))) {
         console.error("Firebase Quota Exceeded. The free daily read/write limit for this database has been reached. The quota will reset tomorrow.");
-        // setQuotaError("Firebase Quota Exceeded. The free daily read/write limit for this database has been reached. The quota will reset tomorrow.");
+        setQuotaError("Firebase Quota Exceeded. The free daily read/write limit for this database has been reached. The quota will reset tomorrow.");
       }
     };
 
@@ -207,7 +230,8 @@ const App: React.FC = () => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       console.log("Auth state changed:", currentUser?.email);
       setUser(currentUser);
-      setIsAdmin(currentUser?.email === 'darkfn1234567890@gmail.com')
+      const isAdminEmail = currentUser?.email === 'darkfn1234567890@gmail.com' || currentUser?.email === 'whitecaleb888@gmail.com';
+      setIsAdmin(isAdminEmail)
       setIsSuperAdmin(currentUser?.email === 'darkfn1234567890@gmail.com')
       setIsAuthReady(true);
       if (currentUser) {
@@ -268,9 +292,9 @@ const App: React.FC = () => {
         // Update admin status based on role in database
         const email = user.email?.toLowerCase();
         const isAppOwner = email === 'darkfn1234567890@gmail.com';
-        const isSuperOwner = email === 'darkfn1234567890@gmail.com';
-        setIsAdmin(isAppOwner || data.role === 'admin' || data.role === 'co-owner' || data.role === 'owner');
-        setIsSuperAdmin(isSuperOwner);
+        const isOtherAdmin = email === 'whitecaleb888@gmail.com';
+        setIsAdmin(isAppOwner || isOtherAdmin || data.role === 'admin' || data.role === 'co-owner' || data.role === 'owner');
+        setIsSuperAdmin(isAppOwner);
         setIsBanned(!!data.banned);
       }
     }, (err) => {
@@ -672,17 +696,30 @@ const App: React.FC = () => {
 
           <div id="content-area" className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-10 custom-scrollbar overscroll-contain">
             <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
-              {/* Hero Section */}
-              {activeCategory !== 'music' && (
-                <motion.section 
-                  initial={{ opacity: 0, y: -20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, ease: "easeOut" }}
-                  className=""
+              {isPageLoading ? (
+                <motion.div 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex flex-col items-center justify-center py-40 text-center"
                 >
-                </motion.section>
-              )}
-              {searchQuery ? (
+                  <Loader2 size={64} className="mb-6 text-accent animate-spin" />
+                  <h2 className="text-3xl font-black uppercase italic tracking-widest italic mb-2 text-white animate-pulse">Loading Content...</h2>
+                  <p className="text-text-secondary font-medium uppercase tracking-[0.2em] text-[10px]">Please wait while we fetch the latest data</p>
+                </motion.div>
+              ) : (
+                <>
+                  {/* Hero Section */}
+                  {activeCategory !== 'music' && (
+                    <motion.section 
+                      initial={{ opacity: 0, y: -20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.6, ease: "easeOut" }}
+                      className=""
+                    >
+                    </motion.section>
+                  )}
+                  {searchQuery ? (
                 <motion.div 
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -977,10 +1014,38 @@ const App: React.FC = () => {
                         <div className="absolute -bottom-40 -right-40 w-[600px] h-[600px] bg-accent/5 rounded-full blur-[120px] pointer-events-none"></div>
                       </div>
                     )}
-                    {activeCategory === 'movies' && <LibrarySection title={t('Movies')} items={MOVIES_DATA} category="movie" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />}
-                    {activeCategory === 'tv shows' && <LibrarySection title={t('TV Shows')} items={TV_DATA} category="tv" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />}
-                    {activeCategory === 'anime' && <LibrarySection title={t('Animes')} items={ANIME_DATA} category="anime" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />}
-                    {activeCategory === 'manga' && <LibrarySection title={t('Mangas')} items={MANGA_DATA} category="manga" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />}
+                    {activeCategory === 'movies' && (
+                      <>
+                        {uploads.filter(u => u.type === 'movie').length > 0 && (
+                          <LibrarySection title={t('New Movies')} items={uploads.filter(u => u.type === 'movie').map(u => ({ t: u.title, l: u.driveLink, img: u.imageLink }))} category="movie" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />
+                        )}
+                        <LibrarySection title={t('Movies')} items={MOVIES_DATA} category="movie" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />
+                      </>
+                    )}
+                    {activeCategory === 'tv shows' && (
+                      <>
+                        {uploads.filter(u => u.type === 'tv').length > 0 && (
+                          <LibrarySection title={t('New TV Shows')} items={uploads.filter(u => u.type === 'tv').map(u => ({ t: u.title, l: u.driveLink, img: u.imageLink }))} category="tv" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />
+                        )}
+                        <LibrarySection title={t('TV Shows')} items={TV_DATA} category="tv" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />
+                      </>
+                    )}
+                    {activeCategory === 'anime' && (
+                      <>
+                        {uploads.filter(u => u.type === 'anime').length > 0 && (
+                          <LibrarySection title={t('New Anime')} items={uploads.filter(u => u.type === 'anime').map(u => ({ t: u.title, l: u.driveLink, img: u.imageLink }))} category="anime" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />
+                        )}
+                        <LibrarySection title={t('Animes')} items={ANIME_DATA} category="anime" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />
+                      </>
+                    )}
+                    {activeCategory === 'manga' && (
+                      <>
+                        {uploads.filter(u => u.type === 'manga').length > 0 && (
+                          <LibrarySection title={t('New Manga')} items={uploads.filter(u => u.type === 'manga').map(u => ({ t: u.title, l: u.driveLink, img: u.imageLink }))} category="manga" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />
+                        )}
+                        <LibrarySection title={t('Mangas')} items={MANGA_DATA} category="manga" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />
+                      </>
+                    )}
                     {activeCategory === 'music' && <MusicPlayer />}
                     
                     {activeCategory === 'proxies' && (
@@ -1010,6 +1075,8 @@ const App: React.FC = () => {
                     {activeCategory === 'partners' && <Partners />}
                   </motion.div>
                 </AnimatePresence>
+              )}
+                </>
               )}
             </div>
           </div>

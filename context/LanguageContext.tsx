@@ -57,6 +57,7 @@ export const TRANSLATIONS: Record<string, Record<string, string>> = {
     'Portuguese': 'Portuguese',
     'Records Found': 'Records Found',
     'No matches': 'No matches',
+    'New Stuff': 'New Stuff',
     'All Categories': 'All Categories',
     'SEARCH ARCHIVE': 'SEARCH ARCHIVE',
     'INITIALIZE STREAM': 'INITIALIZE STREAM',

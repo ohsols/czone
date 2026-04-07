@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Trash2, Edit2, Save, AlertCircle, CheckCircle2, ShieldCheck, Users, Megaphone, Activity, Send, Check, Ban, UserCheck } from 'lucide-react';
+import { X, Plus, Trash2, Edit2, Save, AlertCircle, CheckCircle2, ShieldCheck, Users, Megaphone, Activity, Send, Check, Ban, UserCheck, Upload, Loader2 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { db, auth, OperationType, handleFirestoreError } from '../firebase';
 import { collection, addDoc, query, orderBy, deleteDoc, doc, updateDoc, serverTimestamp, Timestamp, setDoc, where, getDocs, limit } from 'firebase/firestore';
@@ -56,6 +56,35 @@ interface AdminDashboardProps {
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, isAdmin }) => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [uploadType, setUploadType] = useState('movie');
+  const [uploadTitle, setUploadTitle] = useState('');
+  const [driveLink, setDriveLink] = useState('');
+  const [imageLink, setImageLink] = useState('');
+  const [uploadSuccess, setUploadSuccess] = useState('');
+
+  const handleUpload = async () => {
+    if (!uploadTitle || !driveLink || !imageLink) {
+      setError('Please fill in all fields.');
+      return;
+    }
+    try {
+      await addDoc(collection(db, 'uploads'), {
+        title: uploadTitle,
+        type: uploadType,
+        driveLink,
+        imageLink,
+        createdAt: serverTimestamp(),
+      });
+      setUploadSuccess('Content uploaded successfully!');
+      setUploadTitle('');
+      setDriveLink('');
+      setImageLink('');
+      setTimeout(() => setUploadSuccess(''), 3000);
+    } catch (err) {
+      setError('Failed to upload content.');
+      handleFirestoreError(err, OperationType.CREATE, 'uploads');
+    }
+  };
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [appeals, setAppeals] = useState<Appeal[]>([]);
@@ -66,7 +95,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'announcements' | 'suggestions' | 'users' | 'admins' | 'analytics' | 'appeals' | 'banned'>('announcements');
+  const [activeTab, setActiveTab] = useState<'announcements' | 'suggestions' | 'users' | 'admins' | 'analytics' | 'appeals' | 'banned' | 'upload'>('announcements');
+  const [isLoading, setIsLoading] = useState(false);
   const [suggestionFilter, setSuggestionFilter] = useState<'all' | 'pending' | 'reviewed'>('all');
   const [appealFilter, setAppealFilter] = useState<'all' | 'pending' | 'approved' | 'denied'>('all');
   const [userSearchQuery, setUserSearchQuery] = useState('');
@@ -74,32 +104,40 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
 
   useEffect(() => {
     const fetchData = async () => {
+      setIsLoading(true);
       try {
-        const qAnnouncements = query(collection(db, 'site_announcements'), orderBy('createdAt', 'desc'), limit(1000));
-        const snapshotAnnouncements = await getDocs(qAnnouncements);
-        setAnnouncements(snapshotAnnouncements.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Announcement[]);
-
-        const qSuggestions = query(collection(db, 'suggestions'), orderBy('createdAt', 'desc'), limit(1000));
-        const snapshotSuggestions = await getDocs(qSuggestions);
-        setSuggestions(snapshotSuggestions.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Suggestion[]);
-
-        const qAdmins = query(collection(db, 'allowed_admins'), orderBy('createdAt', 'desc'), limit(1000));
-        const snapshotAdmins = await getDocs(qAdmins);
-        setAllowedAdmins(snapshotAdmins.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AllowedAdmin[]);
-
-        const qUsers = query(collection(db, 'users'), limit(5000));
-        const snapshotUsers = await getDocs(qUsers);
-        setUsers(snapshotUsers.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as User[]);
-
-        const qAppeals = query(collection(db, 'appeals'), orderBy('createdAt', 'desc'), limit(1000));
-        const snapshotAppeals = await getDocs(qAppeals);
-        setAppeals(snapshotAppeals.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Appeal[]);
+        if (activeTab === 'announcements') {
+          const q = query(collection(db, 'site_announcements'), orderBy('createdAt', 'desc'), limit(100));
+          const snapshot = await getDocs(q);
+          setAnnouncements(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Announcement[]);
+        } else if (activeTab === 'suggestions') {
+          const q = query(collection(db, 'suggestions'), orderBy('createdAt', 'desc'), limit(100));
+          const snapshot = await getDocs(q);
+          setSuggestions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Suggestion[]);
+        } else if (activeTab === 'admins') {
+          const q = query(collection(db, 'allowed_admins'), orderBy('createdAt', 'desc'), limit(100));
+          const snapshot = await getDocs(q);
+          setAllowedAdmins(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AllowedAdmin[]);
+        } else if (activeTab === 'users' || activeTab === 'banned') {
+          const q = query(collection(db, 'users'), limit(500));
+          const snapshot = await getDocs(q);
+          setUsers(snapshot.docs.map(doc => ({ uid: doc.id, ...doc.data() })) as User[]);
+        } else if (activeTab === 'appeals') {
+          const q = query(collection(db, 'appeals'), orderBy('createdAt', 'desc'), limit(100));
+          const snapshot = await getDocs(q);
+          setAppeals(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Appeal[]);
+        }
       } catch (err) {
-        handleFirestoreError(err, OperationType.LIST, 'admin_dashboard_data');
+        handleFirestoreError(err, OperationType.LIST, `admin_dashboard_${activeTab}`);
+      } finally {
+        setIsLoading(false);
       }
     };
-    fetchData();
-  }, []);
+    
+    if (activeTab !== 'analytics' && activeTab !== 'upload') {
+      fetchData();
+    }
+  }, [activeTab]);
 
   const handleAddAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -180,11 +218,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
 
       // 2. Reset all users to 'user' role except super admin
       const usersRef = collection(db, 'users');
-      const userSnapshot = await getDocs(usersRef);
-      console.log(`Found ${userSnapshot.docs.length} total users.`);
+      // Query only users with admin-related roles to save quota
+      const adminRoles = ['admin', 'co-owner', 'owner'];
+      const qUsers = query(usersRef, where('role', 'in', adminRoles), limit(500));
+      const userSnapshot = await getDocs(qUsers);
+      console.log(`Found ${userSnapshot.docs.length} users with admin roles.`);
       const updatePromises = userSnapshot.docs
-        .filter(docSnap => docSnap.data().email?.toLowerCase() !== 'darkfn1234567890@gmail.com' && 
-                           (docSnap.data().role === 'admin' || docSnap.data().role === 'co-owner' || docSnap.data().role === 'owner'))
+        .filter(docSnap => docSnap.data().email?.toLowerCase() !== 'darkfn1234567890@gmail.com')
         .map(docSnap => {
           console.log(`Demoting user: ${docSnap.data().email} (${docSnap.id})`);
           return setDoc(doc(db, 'users', docSnap.id), { role: 'user' }, { merge: true });
@@ -329,6 +369,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
           { id: 'suggestions', icon: Send, label: 'Suggestions' },
           { id: 'appeals', icon: AlertCircle, label: 'Appeals' },
           { id: 'analytics', icon: Activity, label: 'Analytics' },
+          { id: 'upload', icon: Upload, label: 'Upload' },
           ...(isSuperAdmin || isAdmin ? [
             { id: 'users', icon: Users, label: 'User Management' },
             { id: 'banned', icon: Ban, label: 'Banned Users' },
@@ -356,7 +397,29 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
-        {activeTab === 'announcements' && (
+        {isLoading && activeTab !== 'analytics' && activeTab !== 'upload' && (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="animate-spin text-accent" size={32} />
+          </div>
+        )}
+
+        {!isLoading && activeTab === 'upload' && (
+          <div className="p-6 space-y-6">
+            <h3 className="text-xl font-black uppercase italic tracking-tighter">Upload New Content</h3>
+            {uploadSuccess && <p className="text-green-500">{uploadSuccess}</p>}
+            <select value={uploadType} onChange={(e) => setUploadType(e.target.value)} className="w-full bg-surface border border-white/10 rounded-xl p-3 text-white">
+              <option value="movie">Movie</option>
+              <option value="anime">Anime</option>
+              <option value="manga">Manga</option>
+              <option value="tv">TV Show</option>
+            </select>
+            <input type="text" placeholder="Title" value={uploadTitle} onChange={(e) => setUploadTitle(e.target.value)} className="w-full bg-surface border border-white/10 rounded-xl p-3 text-white" />
+            <input type="text" placeholder="Google Drive Link" value={driveLink} onChange={(e) => setDriveLink(e.target.value)} className="w-full bg-surface border border-white/10 rounded-xl p-3 text-white" />
+            <input type="text" placeholder="Image Link" value={imageLink} onChange={(e) => setImageLink(e.target.value)} className="w-full bg-surface border border-white/10 rounded-xl p-3 text-white" />
+            <button onClick={handleUpload} className="w-full bg-accent text-black font-black uppercase py-3 rounded-xl hover:bg-accent/90 transition-all">Upload</button>
+          </div>
+        )}
+        {!isLoading && activeTab === 'announcements' && (
           <div className="space-y-8">
             {/* New Announcement Form */}
             <form onSubmit={handleAddAnnouncement} className="bg-white/5 rounded-2xl p-6 border border-white/5 space-y-4">
