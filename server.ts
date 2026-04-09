@@ -60,6 +60,7 @@ const MONOCHROME_HEADERS = {
 };
 
 app.get('/api/music/monochrome/search', async (req, res) => {
+  console.log(`[API] Music search request received: "${req.query.s}"`);
   try {
     const query = req.query.s as string;
     if (!query) return res.status(400).json({ error: 'Query required' });
@@ -251,7 +252,7 @@ async function startServer() {
     // In production, serve static files from dist
     app.use(express.static('dist'));
     // Catch-all for SPA in production
-    app.get('*all', (req, res) => {
+    app.get('*', (req, res) => {
       res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
     });
   }

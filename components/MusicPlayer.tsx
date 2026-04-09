@@ -35,6 +35,7 @@ const MusicPlayer: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Track[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [volume, setVolume] = useState(0.8);
@@ -53,24 +54,43 @@ const MusicPlayer: React.FC = () => {
     if (!searchQuery.trim()) return;
 
     setIsLoading(true);
+    setSearchError(null);
     try {
       const response = await fetch(`/api/music/monochrome/search?s=${encodeURIComponent(searchQuery)}`);
-      if (response.ok) {
-        const data = await response.json();
-        // Assuming data is an array of tracks or has a results property
-        // Based on monochrome API, it usually returns an array of objects
-        const tracks = (Array.isArray(data) ? data : data.results || []).map((item: any) => ({
-          id: item.id || item.trackId,
-          title: item.title || item.name,
-          artist: item.artist || item.artists?.[0]?.name || 'Unknown Artist',
-          album: item.album || item.albumName,
-          image: item.image || item.thumbnail || item.artworkUrl || 'https://picsum.photos/seed/music/300/300',
-          duration: item.duration
-        }));
-        setSearchResults(tracks);
+      
+      const contentType = response.headers.get("content-type");
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorMessage = `Search failed: ${response.status}`;
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.error || errorData.message || errorMessage;
+        } catch (e) {
+          // Not JSON, use status text
+        }
+        throw new Error(errorMessage);
       }
-    } catch (error) {
+
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        console.error('Search error: Expected JSON but got', contentType, text.substring(0, 100));
+        throw new Error("Invalid response from server. Please try again later.");
+      }
+
+      const data = await response.json();
+      // Assuming data is an array of tracks or has a results property
+      const tracks = (Array.isArray(data) ? data : data.results || []).map((item: any) => ({
+        id: item.id || item.trackId,
+        title: item.title || item.name,
+        artist: item.artist || item.artists?.[0]?.name || 'Unknown Artist',
+        album: item.album || item.albumName,
+        image: item.image || item.thumbnail || item.artworkUrl || 'https://picsum.photos/seed/music/300/300',
+        duration: item.duration
+      }));
+      setSearchResults(tracks);
+    } catch (error: any) {
       console.error('Search error:', error);
+      setSearchError(error.message || 'An unexpected error occurred');
     } finally {
       setIsLoading(false);
     }
@@ -221,6 +241,12 @@ const MusicPlayer: React.FC = () => {
                 </div>
                 <h3 className="text-2xl font-black italic uppercase tracking-tighter text-white mb-2">No Music Playing</h3>
                 <p className="text-text-secondary max-w-xs mx-auto">Search for a track to start your session.</p>
+              </div>
+            )}
+
+            {searchError && (
+              <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 text-sm font-medium">
+                {searchError}
               </div>
             )}
 

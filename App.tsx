@@ -199,7 +199,9 @@ const App: React.FC = () => {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isBanned, setIsBanned] = useState(false);
   const [isAuthReady, setIsAuthReady] = useState(false);
-  const [quotaError, setQuotaError] = useState<string | null>(null);
+  const [isQuotaExceededUI, setIsQuotaExceededUI] = useState(false);
+  const [showQuotaPopup, setShowQuotaPopup] = useState(false);
+  const [hasShownQuotaPopup, setHasShownQuotaPopup] = useState(false);
   const { t } = useLanguage();
   const [uploads, setUploads] = useState<any[]>([]);
 
@@ -243,10 +245,8 @@ const App: React.FC = () => {
       const customEvent = e as CustomEvent;
       const errInfo = customEvent.detail;
       if (errInfo && errInfo.error && (errInfo.error.includes('Quota limit exceeded') || errInfo.error.includes('Quota exceeded'))) {
-        if (!quotaError) {
-          console.warn("Firebase Quota Exceeded. The free daily read/write limit for this database has been reached. The quota will reset tomorrow.");
-          setQuotaError("Firebase Quota Exceeded. The free daily read/write limit for this database has been reached. The quota will reset tomorrow.");
-        }
+        console.warn("Firebase Quota Exceeded. The free daily read/write limit for this database has been reached.");
+        setIsQuotaExceededUI(true);
       }
     };
 
@@ -614,11 +614,26 @@ const App: React.FC = () => {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => setIsAdminOpen(true)}
-                  className="w-10 h-10 flex items-center justify-center rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-all duration-300"
+                  onClick={() => {
+                    if (isQuotaExceededUI && !hasShownQuotaPopup) {
+                      setShowQuotaPopup(true);
+                    } else {
+                      setIsAdminOpen(true);
+                    }
+                  }}
+                  className="w-10 h-10 flex items-center justify-center rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-all duration-300 relative"
                   title="Admin Dashboard"
                 >
                   <ShieldCheck size={18} />
+                  {isQuotaExceededUI && (
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 rounded-full flex items-center justify-center border-2 border-bg text-[10px] font-black text-white shadow-lg"
+                    >
+                      !
+                    </motion.div>
+                  )}
                 </motion.button>
               )}
 
@@ -946,7 +961,14 @@ const App: React.FC = () => {
                         
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 relative z-10">
                           <div className="lg:col-span-3">
-                            {user ? <ChatRoom isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} /> : <div className="text-center py-20 text-text-muted">Please sign up to access the chat room.</div>}
+                            <div className="bg-surface border border-white/5 rounded-3xl p-20 text-center shadow-2xl relative overflow-hidden">
+                              <div className="absolute inset-0 bg-accent/5 pointer-events-none"></div>
+                              <MessageSquare size={64} className="mx-auto text-accent/40 mb-6" />
+                              <h2 className="text-3xl font-black italic uppercase tracking-tighter text-white mb-4">Chat Temporarily Disabled</h2>
+                              <p className="text-text-secondary max-w-md mx-auto font-medium">
+                                We've temporarily disabled the community chat to manage our database quota. We'll be back online soon!
+                              </p>
+                            </div>
                           </div>
                           <div className="space-y-6">
                             <div className="bg-surface border border-white/5 rounded-2xl p-6 shadow-xl">
@@ -1008,7 +1030,14 @@ const App: React.FC = () => {
                         
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 relative z-10">
                           <div className="lg:col-span-3">
-                            {isAdmin ? <ChatRoom collectionName="admin_chat" isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} /> : <div className="text-center py-20 text-text-muted">Authorized personnel only.</div>}
+                            <div className="bg-surface border border-white/5 rounded-3xl p-20 text-center shadow-2xl relative overflow-hidden">
+                              <div className="absolute inset-0 bg-accent/5 pointer-events-none"></div>
+                              <ShieldCheck size={64} className="mx-auto text-accent/40 mb-6" />
+                              <h2 className="text-3xl font-black italic uppercase tracking-tighter text-white mb-4">Staff Lounge Offline</h2>
+                              <p className="text-text-secondary max-w-md mx-auto font-medium">
+                                The staff lounge is currently offline for maintenance. Please use our secondary communication channels.
+                              </p>
+                            </div>
                           </div>
                           <div className="space-y-6">
                             <div className="bg-surface border border-white/5 rounded-2xl p-6 shadow-xl">
@@ -1287,13 +1316,7 @@ const App: React.FC = () => {
 
 
       <AnimatePresence>
-        {isSuggestionModalOpen && (
-          <SuggestionModal onClose={() => setIsSuggestionModalOpen(false)} />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {quotaError && (
+        {showQuotaPopup && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -1311,16 +1334,20 @@ const App: React.FC = () => {
               </div>
               <h2 className="text-2xl font-black italic uppercase tracking-widest text-white mb-4">Quota Exceeded</h2>
               <p className="text-neutral-400 mb-8 font-medium">
-                {quotaError}
+                The free daily read/write limit for this database has been reached. The quota will reset tomorrow.
               </p>
               <p className="text-sm text-neutral-500 mb-8">
                 Detailed quota information can be found under the Spark plan column in the Enterprise edition section of <a href="https://firebase.google.com/pricing#cloud-firestore" target="_blank" rel="noreferrer" className="text-accent hover:underline">Firebase Pricing</a>.
               </p>
               <button 
-                onClick={() => setQuotaError(null)}
+                onClick={() => {
+                  setHasShownQuotaPopup(true);
+                  setShowQuotaPopup(false);
+                  setIsAdminOpen(true);
+                }}
                 className="w-full py-4 bg-white text-black rounded-xl font-black uppercase tracking-widest hover:scale-[1.02] transition-all"
               >
-                Dismiss
+                Dismiss & Open Panel
               </button>
             </motion.div>
           </motion.div>
