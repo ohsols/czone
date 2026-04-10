@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { auth } from '../firebase';
+import { auth, db, handleFirestoreError, OperationType } from '../firebase';
+import { collection, query, orderBy, limit, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import EmojiPicker, { Theme as EmojiTheme } from 'emoji-picker-react';
 import { Send, Trash2, Edit2, Check, X, ShieldCheck, Smile, DollarSign, MessageSquare, AlertCircle, Zap, Ban, Loader2, Wifi, WifiOff } from 'lucide-react';
 
@@ -24,9 +25,7 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
   const [replyTo, setReplyTo] = useState<{ id: string, text: string, displayName: string } | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [cooldownRemaining, setCooldownRemaining] = useState(0);
-  const [isConnected, setIsConnected] = useState(false);
   
-  const socketRef = useRef<WebSocket | null>(null);
   const isAtBottomRef = useRef(true);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const emojiPickerRef = useRef<HTMLDivElement>(null);
@@ -39,70 +38,28 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
   };
 
   useEffect(() => {
-    const connectWebSocket = () => {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${protocol}//${window.location.host}/ws`;
-      
-      console.log('Connecting to WebSocket:', wsUrl);
-      const ws = new WebSocket(wsUrl);
-      socketRef.current = ws;
+    const q = query(
+      collection(db, collectionName),
+      orderBy('createdAt', 'asc'),
+      limit(100)
+    );
 
-      ws.onopen = () => {
-        console.log('WebSocket Connected');
-        setIsConnected(true);
-        setIsLoading(false);
-        setError(null);
-      };
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setMessages(msgs);
+      setIsLoading(false);
+    }, (err) => {
+      console.error("Chat error:", err);
+      handleFirestoreError(err, OperationType.GET, collectionName);
+      setError("Failed to load messages.");
+      setIsLoading(false);
+    });
 
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'history') {
-            // Ensure history only contains unique IDs
-            const uniqueHistory = data.messages.reduce((acc: any[], current: any) => {
-              const x = acc.find(item => item.id === current.id);
-              if (!x) {
-                return acc.concat([current]);
-              } else {
-                return acc;
-              }
-            }, []);
-            setMessages(uniqueHistory);
-          } else if (data.type === 'message') {
-            setMessages(prev => {
-              // Prevent duplicate messages by checking ID
-              if (data.id && prev.some(m => m.id === data.id)) {
-                return prev;
-              }
-              return [...prev, data];
-            });
-          }
-        } catch (err) {
-          console.error('Failed to parse WebSocket message:', err);
-        }
-      };
-
-      ws.onclose = () => {
-        console.log('WebSocket Disconnected');
-        setIsConnected(false);
-        // Attempt to reconnect after 3 seconds
-        setTimeout(connectWebSocket, 3000);
-      };
-
-      ws.onerror = (err) => {
-        console.error('WebSocket Error:', err);
-        setError('Connection error. Retrying...');
-      };
-    };
-
-    connectWebSocket();
-
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.close();
-      }
-    };
-  }, []);
+    return () => unsubscribe();
+  }, [collectionName]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -127,9 +84,9 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
     }
   }, [cooldownRemaining]);
 
-  const sendMessage = (e: React.FormEvent) => {
+  const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim() || !auth.currentUser || !socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) return;
+    if (!newMessage.trim() || !auth.currentUser) return;
 
     if (!isAdmin && !isSuperAdmin && cooldownRemaining > 0) {
       setError(`Please wait ${cooldownRemaining}s before sending another message.`);
@@ -148,24 +105,30 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
     }
 
     const messageData = {
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       text: newMessage,
-      createdAt: new Date().toISOString(),
+      createdAt: serverTimestamp(),
       uid: auth.currentUser.uid,
       displayName: auth.currentUser.displayName || 'Anonymous',
       role: isSuperAdmin ? 'super-admin' : (isAdmin ? 'admin' : 'user'),
       replyTo: replyTo ? { id: replyTo.id, text: replyTo.text, displayName: replyTo.displayName } : null,
     };
 
-    socketRef.current.send(JSON.stringify(messageData));
-    
-    if (!isAdmin && !isSuperAdmin) {
-      setCooldownRemaining(3);
-    }
+    try {
+      await addDoc(collection(db, collectionName), messageData);
+      
+      if (!isAdmin && !isSuperAdmin) {
+        setCooldownRemaining(3);
+      }
 
-    setNewMessage('');
-    setReplyTo(null);
-    isAtBottomRef.current = true;
+      setNewMessage('');
+      setReplyTo(null);
+      isAtBottomRef.current = true;
+    } catch (err) {
+      console.error("Error sending message:", err);
+      handleFirestoreError(err, OperationType.CREATE, collectionName);
+      setError("Failed to send message.");
+      setTimeout(() => setError(null), 3000);
+    }
   };
 
   const startEdit = (id: string, text: string) => {
@@ -173,11 +136,31 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
     setEditValue(text);
   };
 
-  const saveEdit = (id: string) => {
-    // Note: In this simple WebSocket implementation, we don't have a backend to handle edits/deletes globally
-    // unless we add more event types. For now, we'll just close the edit UI.
-    setEditingMessageId(null);
-    setEditValue('');
+  const saveEdit = async (id: string) => {
+    if (!editValue.trim()) return;
+    try {
+      await updateDoc(doc(db, collectionName, id), {
+        text: editValue
+      });
+      setEditingMessageId(null);
+      setEditValue('');
+    } catch (err) {
+      console.error("Error updating message:", err);
+      handleFirestoreError(err, OperationType.UPDATE, `${collectionName}/${id}`);
+      setError("Failed to update message.");
+      setTimeout(() => setError(null), 3000);
+    }
+  };
+
+  const deleteMessage = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, collectionName, id));
+    } catch (err) {
+      console.error("Error deleting message:", err);
+      handleFirestoreError(err, OperationType.DELETE, `${collectionName}/${id}`);
+      setError("Failed to delete message.");
+      setTimeout(() => setError(null), 3000);
+    }
   };
 
   return (
@@ -196,13 +179,9 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
               <h2 className="text-lg font-black italic uppercase tracking-tighter text-white">
                 {collectionName === 'admin_chat' ? 'Staff Lounge' : 'Public Chat'}
               </h2>
-              {isConnected ? (
-                <Wifi size={14} className="text-green-500" />
-              ) : (
-                <WifiOff size={14} className="text-red-500 animate-pulse" />
-              )}
+              <Wifi size={14} className="text-green-500" />
             </div>
-            <p className="text-[10px] text-text-secondary font-bold uppercase tracking-widest">Live Community Discussion (WebSocket)</p>
+            <p className="text-[10px] text-text-secondary font-bold uppercase tracking-widest">Live Community Discussion</p>
           </div>
         </div>
         <AnimatePresence>
@@ -237,7 +216,7 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
           </div>
         ) : (
           messages.map((msg, index) => (
-            <div key={msg.id ? `msg-${msg.id}` : `idx-${index}`} className={`flex flex-col ${msg.uid === auth.currentUser?.uid ? 'items-end' : 'items-start'}`}>
+            <div key={msg.id || `idx-${index}`} className={`flex flex-col ${msg.uid === auth.currentUser?.uid ? 'items-end' : 'items-start'}`}>
               {msg.role && (msg.role === 'admin' || msg.role === 'super-admin' || msg.role === 'donator' || msg.role === 'tester') && (
                 <motion.div 
                   initial={{ opacity: 0, y: 5 }}
@@ -262,7 +241,7 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
                     {msg.displayName}
                   </p>
                   <p className="text-[10px] opacity-50 ml-2">
-                    {msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '...'}
+                    {msg.createdAt?.toDate ? msg.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '...'}
                   </p>
                 </div>
                 {msg.replyTo && (
@@ -291,6 +270,9 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
                       <button onClick={() => startEdit(msg.id, msg.text)} className="opacity-50 hover:opacity-100"><Edit2 size={12} /></button>
                     </>
                   )}
+                  {(msg.uid === auth.currentUser?.uid || isSuperAdmin || isAdmin) && (
+                    <button onClick={() => deleteMessage(msg.id)} className="opacity-50 hover:opacity-100 text-red-300"><Trash2 size={12} /></button>
+                  )}
                 </div>
               </div>
             </div>
@@ -310,9 +292,8 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
             type="text"
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
-            placeholder={isConnected ? "Type a message..." : "Connecting..."}
-            disabled={!isConnected}
-            className="flex-1 bg-white/5 border border-white/5 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-accent disabled:opacity-50"
+            placeholder="Type a message..."
+            className="flex-1 bg-white/5 border border-white/5 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-accent"
           />
           <button 
             type="button"
@@ -348,7 +329,7 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
         </div>
         <button 
           type="submit" 
-          disabled={!isConnected || (!isAdmin && !isSuperAdmin && cooldownRemaining > 0)}
+          disabled={!isAdmin && !isSuperAdmin && cooldownRemaining > 0}
           className="p-2 bg-accent rounded-xl text-white hover:bg-accent/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[40px]"
         >
           {cooldownRemaining > 0 && !isAdmin && !isSuperAdmin ? (
@@ -364,3 +345,4 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ collectionName = 'chat', isAdmin = 
 };
 
 export default ChatRoom;
+
