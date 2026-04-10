@@ -70,7 +70,7 @@
 }
 
 @theme {
-  --font-sans: "Swordskull", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   --color-accent: var(--accent);
   --color-bg: var(--bg);

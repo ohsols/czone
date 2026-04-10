@@ -53,20 +53,6 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["email", "addedBy", "createdAt"]
-    },
-    "chat_message": {
-      "title": "Chat Message",
-      "description": "A message in the chat room.",
-      "type": "object",
-      "properties": {
-        "text": { "type": "string", "description": "The message content." },
-        "uid": { "type": "string", "description": "The UID of the sender." },
-        "displayName": { "type": "string", "description": "The display name of the sender." },
-        "role": { "type": "string", "description": "The role of the sender." },
-        "createdAt": { "type": "string", "format": "date-time", "description": "When the message was sent." },
-        "replyTo": { "type": "object", "description": "The message being replied to." }
-      },
-      "required": ["text", "uid", "displayName", "createdAt"]
     }
   },
   "firestore": {
@@ -85,14 +71,6 @@
     "/allowed_admins/{docId}": {
       "schema": "allowed_admins",
       "description": "Allowed admin emails."
-    },
-    "/chat/{messageId}": {
-      "schema": "chat_message",
-      "description": "Public chat messages."
-    },
-    "/admin_chat/{messageId}": {
-      "schema": "chat_message",
-      "description": "Admin chat messages."
     }
   }
 }

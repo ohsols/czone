@@ -10,6 +10,8 @@ import * as cheerio from 'cheerio';
 import { BetaAnalyticsDataClient } from '@google-analytics/data';
 import YTMusic from 'ytmusic-api';
 import yt from 'yt-stream';
+import { WebSocketServer, WebSocket } from 'ws';
+import http from 'http';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -184,7 +186,50 @@ async function startServer() {
     });
   }
 
-  const server = app.listen(PORT, '0.0.0.0', () => {
+  const server = http.createServer(app);
+
+  // WebSocket Server Integration
+  const wss = new WebSocketServer({ server, path: '/ws' });
+  const messageHistory: any[] = [];
+  const MAX_HISTORY = 100;
+
+  wss.on('connection', (ws) => {
+    console.log('New chat client connected');
+
+    // Send history to new client
+    if (messageHistory.length > 0) {
+      ws.send(JSON.stringify({ type: 'history', messages: messageHistory }));
+    }
+
+    ws.on('message', (message) => {
+      try {
+        const messageData = JSON.parse(message.toString());
+        console.log('Received message:', messageData);
+        
+        // Add to history
+        messageHistory.push(messageData);
+        if (messageHistory.length > MAX_HISTORY) {
+          messageHistory.shift();
+        }
+
+        // Broadcast to all connected clients
+        const broadcastData = JSON.stringify({ type: 'message', ...messageData });
+        wss.clients.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(broadcastData);
+          }
+        });
+      } catch (err) {
+        console.error('Failed to parse message:', err);
+      }
+    });
+
+    ws.on('close', () => {
+      console.log('Chat client disconnected');
+    });
+  });
+
+  server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 }
