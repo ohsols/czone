@@ -961,14 +961,7 @@ const App: React.FC = () => {
                         
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 relative z-10">
                           <div className="lg:col-span-3">
-                            <div className="bg-surface border border-white/5 rounded-3xl p-20 text-center shadow-2xl relative overflow-hidden">
-                              <div className="absolute inset-0 bg-accent/5 pointer-events-none"></div>
-                              <MessageSquare size={64} className="mx-auto text-accent/40 mb-6" />
-                              <h2 className="text-3xl font-black italic uppercase tracking-tighter text-white mb-4">Chat Temporarily Disabled</h2>
-                              <p className="text-text-secondary max-w-md mx-auto font-medium">
-                                We've temporarily disabled the community chat to manage our database quota. We'll be back online soon!
-                              </p>
-                            </div>
+                            <ChatRoom isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} />
                           </div>
                           <div className="space-y-6">
                             <div className="bg-surface border border-white/5 rounded-2xl p-6 shadow-xl">
@@ -1030,14 +1023,7 @@ const App: React.FC = () => {
                         
                         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 relative z-10">
                           <div className="lg:col-span-3">
-                            <div className="bg-surface border border-white/5 rounded-3xl p-20 text-center shadow-2xl relative overflow-hidden">
-                              <div className="absolute inset-0 bg-accent/5 pointer-events-none"></div>
-                              <ShieldCheck size={64} className="mx-auto text-accent/40 mb-6" />
-                              <h2 className="text-3xl font-black italic uppercase tracking-tighter text-white mb-4">Staff Lounge Offline</h2>
-                              <p className="text-text-secondary max-w-md mx-auto font-medium">
-                                The staff lounge is currently offline for maintenance. Please use our secondary communication channels.
-                              </p>
-                            </div>
+                            <ChatRoom collectionName="admin_chat" isAdmin={isAdmin} isSuperAdmin={isSuperAdmin} />
                           </div>
                           <div className="space-y-6">
                             <div className="bg-surface border border-white/5 rounded-2xl p-6 shadow-xl">

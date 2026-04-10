@@ -78,13 +78,25 @@ const MusicPlayer: React.FC = () => {
       }
 
       const data = await response.json();
-      // Assuming data is an array of tracks or has a results property
-      const tracks = (Array.isArray(data) ? data : data.results || []).map((item: any) => ({
-        id: item.id || item.trackId,
-        title: item.title || item.name,
-        artist: item.artist || item.artists?.[0]?.name || 'Unknown Artist',
+      
+      // Handle various response structures from different mirrors
+      let rawTracks = [];
+      if (Array.isArray(data)) {
+        rawTracks = data;
+      } else if (data.results && Array.isArray(data.results)) {
+        rawTracks = data.results;
+      } else if (data.data && Array.isArray(data.data)) {
+        rawTracks = data.data;
+      } else if (data.data && data.data.results && Array.isArray(data.data.results)) {
+        rawTracks = data.data.results;
+      }
+
+      const tracks = rawTracks.map((item: any) => ({
+        id: item.id || item.trackId || item.songId,
+        title: item.title || item.name || item.songName,
+        artist: item.artist || item.artists?.[0]?.name || item.singer || 'Unknown Artist',
         album: item.album || item.albumName,
-        image: item.image || item.thumbnail || item.artworkUrl || 'https://picsum.photos/seed/music/300/300',
+        image: item.image || item.thumbnail || item.artworkUrl || item.img || 'https://picsum.photos/seed/music/300/300',
         duration: item.duration
       }));
       setSearchResults(tracks);
@@ -102,7 +114,10 @@ const MusicPlayer: React.FC = () => {
       const response = await fetch(`/api/music/monochrome/track/${track.id}`);
       if (response.ok) {
         const data = await response.json();
-        const streamUrl = data.url || data.streamUrl || data.link;
+        
+        // Handle nested data structure if present
+        const trackData = data.data || data;
+        const streamUrl = trackData.url || trackData.streamUrl || trackData.link || trackData.downloadUrl;
         
         if (streamUrl) {
           const trackWithUrl = { ...track, url: streamUrl };
@@ -113,7 +128,14 @@ const MusicPlayer: React.FC = () => {
           if (!playlist.find(t => t.id === track.id)) {
             setPlaylist(prev => [trackWithUrl, ...prev]);
           }
+        } else {
+          console.error('No stream URL found in response:', data);
+          setSearchError('Could not find a playable stream for this track.');
         }
+      } else {
+        const errText = await response.text();
+        console.error('Track load failed:', response.status, errText);
+        setSearchError('Failed to load track details.');
       }
     } catch (error) {
       console.error('Track load error:', error);

@@ -10,6 +10,7 @@ import * as cheerio from 'cheerio';
 import { BetaAnalyticsDataClient } from '@google-analytics/data';
 import YTMusic from 'ytmusic-api';
 import yt from 'yt-stream';
+import { WebSocketServer, WebSocket } from 'ws';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -56,7 +57,8 @@ const MONOCHROME_HEADERS = {
   'Accept': 'application/json, text/plain, */*',
   'Accept-Language': 'en-US,en;q=0.9',
   'Cache-Control': 'no-cache',
-  'Pragma': 'no-cache'
+  'Pragma': 'no-cache',
+  'Referer': 'https://monochrome.tf/'
 };
 
 app.get('/api/music/monochrome/search', async (req, res) => {
@@ -65,59 +67,36 @@ app.get('/api/music/monochrome/search', async (req, res) => {
     const query = req.query.s as string;
     if (!query) return res.status(400).json({ error: 'Query required' });
     
-    console.log(`Monochrome search for: ${query}`);
-
     const monochromeMirrors = [
-      `https://api.monochrome.tf/search/?s=${encodeURIComponent(query)}`
+      `https://api.monochrome.tf/search/?s=${encodeURIComponent(query)}`,
+      `https://api.monochrome.tf/search?s=${encodeURIComponent(query)}`,
+      `https://api.monochrome.tf/v1/search?query=${encodeURIComponent(query)}`,
+      `https://monochrome.tf/api/search?s=${encodeURIComponent(query)}`,
+      `https://monochrome.tf/search/?s=${encodeURIComponent(query)}`
     ];
 
     let lastError = null;
 
     for (const url of monochromeMirrors) {
-      // Add a small delay between trying different mirrors
-      await new Promise(resolve => setTimeout(resolve, 500));
-      let retries = 1; // Reduced retries
-      while (retries > 0) {
-        try {
-          console.log(`Trying Monochrome mirror (Retries left: ${retries}): ${url}`);
-          const response = await axios.get(url, { 
-            headers: MONOCHROME_HEADERS,
-            timeout: 3000, // Reduced timeout
-            validateStatus: (status) => true // Allow all status codes to handle 503 gracefully
-          });
+      try {
+        console.log(`Trying Monochrome mirror: ${url}`);
+        const response = await axios.get(url, { 
+          headers: MONOCHROME_HEADERS,
+          timeout: 5000,
+          validateStatus: (status) => status === 200
+        });
 
-          const contentType = response.headers['content-type'] || '';
-          console.log(`Monochrome mirror ${url} returned status ${response.status} with content-type ${contentType}`);
-          
-          if (response.status === 200) {
-            if (contentType.includes('application/json')) {
-              console.log('Monochrome search success');
-              return res.json(response.data);
-            } else {
-              console.error(`Monochrome search failed with status 200. Content-Type: ${contentType}. Body snippet: ${typeof response.data === 'string' ? response.data.substring(0, 100) : 'non-string body'}`);
-              lastError = new Error(`Monochrome search failed with status 200 but returned ${contentType} instead of application/json`);
-            }
-          } else {
-            lastError = new Error(`Monochrome mirror returned status ${response.status}`);
-          }
-          
-          console.debug(`Monochrome mirror ${url} returned status ${response.status} with content-type ${contentType}`);
-          // If not 200, it's a failure, but we want to retry if retries > 0
-          retries--;
-          if (retries > 0) await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
-          continue; // Continue the while loop
-        } catch (e: any) {
-          lastError = e;
-          // Only log as debug to reduce noise
-          console.debug(`Monochrome mirror attempt failed: ${url}. Error: ${e.message}`);
-          retries--;
-          if (retries > 0) await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
+        const contentType = response.headers['content-type'] || '';
+        if (contentType.includes('application/json')) {
+          console.log('Monochrome search success');
+          return res.json(response.data);
         }
+      } catch (e: any) {
+        lastError = e;
+        console.debug(`Monochrome mirror attempt failed: ${url}. Error: ${e.message}`);
       }
     }
 
-    // SILENT FALLBACK TO SAAVN IF MONOCHROME FAILS
-    // Fallback removed per user request
     res.status(503).json({ 
       error: 'Monochrome music search API failed', 
       details: lastError?.message || 'Service Unavailable' 
@@ -136,87 +115,36 @@ app.get('/api/music/monochrome/track/:id', async (req, res) => {
     const monochromeTrackMirrors = [
       `https://ohio.monochrome.tf/track/?id=${id}&quality=${quality}`,
       `https://virginia.monochrome.tf/track/?id=${id}&quality=${quality}`,
-      `https://frankfurt.monochrome.tf/track/?id=${id}&quality=${quality}`
+      `https://frankfurt.monochrome.tf/track/?id=${id}&quality=${quality}`,
+      `https://api.monochrome.tf/track/?id=${id}&quality=${quality}`,
+      `https://api.monochrome.tf/track?id=${id}&quality=${quality}`,
+      `https://api.monochrome.tf/v1/track?id=${id}&quality=${quality}`,
+      `https://monochrome.tf/api/track?id=${id}&quality=${quality}`
     ];
 
     for (const url of monochromeTrackMirrors) {
-      // Add a small delay between trying different mirrors
-      await new Promise(resolve => setTimeout(resolve, 500));
-      let retries = 1; // Reduced retries to fail faster
-      while (retries > 0) {
-        try {
-          console.log(`Trying Monochrome track mirror (Retries left: ${retries}): ${url}`);
-          const response = await axios.get(url, { 
-            headers: MONOCHROME_HEADERS,
-            timeout: 3000, // Reduced timeout
-            validateStatus: (status) => true // Allow all status codes to handle 503 gracefully
-          });
-          
-          const contentType = response.headers['content-type'] || '';
-          if (response.status === 200 && contentType.includes('application/json')) {
-            console.log('Monochrome track success');
-            return res.json(response.data);
-          }
-          
-          console.debug(`Monochrome track mirror ${url} returned status ${response.status} with content-type ${contentType}`);
-          // If not 200, it's a failure, but we want to retry if retries > 0
-          retries--;
-          if (retries > 0) await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s before retry
-          continue; // Continue the while loop
-        } catch (e: any) {
-          console.debug(`Monochrome track mirror attempt failed: ${url}. Error: ${e.message}`);
-          retries--;
-          if (retries > 0) await new Promise(resolve => setTimeout(resolve, 1000));
+      try {
+        console.log(`Trying Monochrome track mirror: ${url}`);
+        const response = await axios.get(url, { 
+          headers: MONOCHROME_HEADERS,
+          timeout: 5000,
+          validateStatus: (status) => status === 200
+        });
+        
+        const contentType = response.headers['content-type'] || '';
+        if (contentType.includes('application/json')) {
+          console.log('Monochrome track success');
+          return res.json(response.data);
         }
+      } catch (e: any) {
+        console.debug(`Monochrome track mirror attempt failed: ${url}. Error: ${e.message}`);
       }
     }
-
-    // If it's a Saavn ID (numeric or alphanumeric from Saavn), we might need a different endpoint
-    // but the client usually knows which one to call. 
-    // Fallback removed per user request
 
     res.status(503).json({ error: 'Failed to fetch track details from Monochrome' });
   } catch (error) {
     console.error('Track proxy error:', error);
     res.status(500).json({ error: 'Failed to fetch track details' });
-  }
-});
-
-// New YTMusic Search and Stream Routes
-const ytmusic = new YTMusic();
-let ytmusicInitialized = false;
-
-async function getYTMusic() {
-  if (!ytmusicInitialized) {
-    await ytmusic.initialize();
-    ytmusicInitialized = true;
-  }
-  return ytmusic;
-}
-
-app.get('/api/music/search', async (req, res) => {
-  try {
-    const query = req.query.q as string;
-    if (!query) return res.status(400).json({ error: 'Query required' });
-    const ytm = await getYTMusic();
-    const results = await ytm.search(query);
-    res.json(results);
-  } catch (error) {
-    console.error('YTMusic search error:', error);
-    res.status(500).json({ error: 'Failed to search music' });
-  }
-});
-
-app.get('/api/music/stream', async (req, res) => {
-  try {
-    const videoId = req.query.id as string;
-    if (!videoId) return res.status(400).json({ error: 'Video ID required' });
-    // @ts-ignore
-    const stream = await yt.stream(videoId);
-    res.json({ url: stream.url });
-  } catch (error) {
-    console.error('YT stream error:', error);
-    res.status(500).json({ error: 'Failed to get stream' });
   }
 });
 
@@ -252,13 +180,76 @@ async function startServer() {
     // In production, serve static files from dist
     app.use(express.static('dist'));
     // Catch-all for SPA in production
-    app.get('*', (req, res) => {
+    app.get('*all', (req, res) => {
       res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on http://localhost:${PORT}`);
+  });
+
+  // WebSocket Server Integration
+  const wss = new WebSocketServer({ server });
+  const messageHistory: any[] = [];
+  const MAX_HISTORY = 50;
+
+  wss.on('connection', (ws) => {
+    console.log('New chat client connected');
+
+    // Send history to new client
+    if (messageHistory.length > 0) {
+      ws.send(JSON.stringify({ type: 'history', messages: messageHistory }));
+    }
+
+    ws.on('message', (message) => {
+      try {
+        const messageData = JSON.parse(message.toString());
+        console.log('Received message:', messageData);
+        
+        // Prevent duplicate IDs in history
+        if (messageData.id && messageHistory.some(m => m.id === messageData.id)) {
+          console.log('Duplicate message ID ignored for history:', messageData.id);
+        } else {
+          // Add to history
+          messageHistory.push(messageData);
+          if (messageHistory.length > MAX_HISTORY) {
+            messageHistory.shift();
+          }
+        }
+
+        // Broadcast to all connected clients
+        const broadcastData = JSON.stringify({ type: 'message', ...messageData });
+        wss.clients.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(broadcastData);
+          }
+        });
+      } catch (err) {
+        // Fallback for plain string messages
+        const messageString = message.toString();
+        const fallbackMsg = { 
+          id: `srv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          type: 'message', 
+          text: messageString, 
+          displayName: 'Anonymous', 
+          createdAt: new Date().toISOString() 
+        };
+        
+        messageHistory.push(fallbackMsg);
+        if (messageHistory.length > MAX_HISTORY) messageHistory.shift();
+
+        wss.clients.forEach((client) => {
+          if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify(fallbackMsg));
+          }
+        });
+      }
+    });
+
+    ws.on('close', () => {
+      console.log('Chat client disconnected');
+    });
   });
 }
 
