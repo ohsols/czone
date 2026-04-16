@@ -137,11 +137,16 @@ const getInitialCategory = (): Category => {
   if (validCategories.includes(normalizedPath)) {
     return normalizedPath;
   }
-  return 'donate';
+  return 'home';
 };
 
 const App: React.FC = () => {
   const [activeCategory, setActiveCategory] = useState<Category>(getInitialCategory);
+  const featuredStaff = useMemo(() => STAFF_DATA.filter(s => 
+    s.role.toLowerCase().includes('owner') || 
+    s.role.toLowerCase().includes('developer') ||
+    s.role.toLowerCase().includes('dev')
+  ), []);
   const [searchQuery, setSearchQuery] = useState('');
   const [proxySearch, setProxySearch] = useState('');
   const [customLogo, setCustomLogo] = useState<string>(DEFAULT_LOGO);
@@ -154,7 +159,7 @@ const App: React.FC = () => {
 
   const navigate = (cat: Category) => {
     setActiveCategory(cat);
-    const path = '/' + cat.replace(' ', '-');
+    const path = cat === 'home' ? '/' : '/' + cat.replace(' ', '-');
     window.history.pushState({}, '', path);
   };
 
@@ -182,7 +187,6 @@ const App: React.FC = () => {
     }
   }, [selectedItem]);
 
-  const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
   const [favorites, setFavorites] = useState<FavoriteItem[]>(() => {
     const saved = localStorage.getItem('chillzone_favorites');
     return saved ? JSON.parse(saved) : [];
@@ -210,23 +214,17 @@ const App: React.FC = () => {
 
     const path = window.location.pathname.substring(1).toLowerCase().replace('-', ' ');
     
-    if (user) {
-      // If logged in and on root or landing on default 'donate', go to home
-      if (path === '' || (path === 'donate' && activeCategory === 'donate')) {
+    // Redirect to root if on root path to ensure home is selected, 
+    // or handle specific defaults if necessary.
+    if (path === '') {
+      if (activeCategory !== 'home') {
         navigate('home');
-      }
-    } else {
-      // If not logged in and on root, go to donate
-      if (path === '') {
-        navigate('donate');
-        // Automatically open auth modal for guests
-        setIsAuthModalOpen(true);
       }
     }
   }, [user, isAuthReady]);
 
   useEffect(() => {
-    if (!user || !isAuthReady || isQuotaExceeded) return;
+    if (!isAuthReady || isQuotaExceeded) return;
 
     const q = query(collection(db, 'uploads'), orderBy('createdAt', 'desc'), limit(50));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -470,7 +468,7 @@ const App: React.FC = () => {
 
   const handleStaffClick = (staff: StaffMember) => {
     if (staff.link) {
-      setSelectedStaff(staff);
+      window.open(staff.link, '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -510,12 +508,15 @@ const App: React.FC = () => {
     // First filter by text
     const textFilter = (item: LibraryItem) => item.t.toLowerCase().includes(q);
     
+    const uploadFilter = (u: any) => u.title.toLowerCase().includes(q);
+    const mappedUploads = uploads.filter(uploadFilter).map(u => ({ t: u.title, l: u.driveLink, img: u.imageLink, type: u.type }));
+
     // Then apply text filter
     const results = {
-      movies: MOVIES_DATA.filter(textFilter),
-      anime: ANIME_DATA.filter(textFilter),
-      manga: MANGA_DATA.filter(textFilter),
-      tv: TV_DATA.filter(textFilter),
+      movies: [...MOVIES_DATA.filter(textFilter), ...mappedUploads.filter(u => u.type === 'movie')],
+      anime: [...ANIME_DATA.filter(textFilter), ...mappedUploads.filter(u => u.type === 'anime')],
+      manga: [...MANGA_DATA.filter(textFilter), ...mappedUploads.filter(u => u.type === 'manga')],
+      tv: [...TV_DATA.filter(textFilter), ...mappedUploads.filter(u => u.type === 'tv')],
     };
 
     if (searchCategory !== 'all') {
@@ -829,6 +830,129 @@ const App: React.FC = () => {
                         transition={{ duration: 0.2, ease: "easeOut" }}
                         className="w-full pb-24"
                       >
+                    {activeCategory === 'home' && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="py-12 space-y-24"
+                      >
+                        {/* Hero Header */}
+                        <div className="relative rounded-[60px] overflow-hidden bg-surface-active/30 border border-white/5 p-12 md:p-24 text-center">
+                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,var(--accent)_0%,transparent_60%)] opacity-10 pointer-events-none"></div>
+                          <motion.div
+                            initial={{ scale: 0.8, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            transition={{ duration: 0.8 }}
+                            className="relative z-10"
+                          >
+                            <h1 className="text-6xl md:text-9xl font-black uppercase italic tracking-tighter text-white mb-12 drop-shadow-2xl">
+                              {t('ChillZone')}
+                            </h1>
+                            <div className="flex flex-wrap justify-center gap-4">
+                              <motion.button
+                                whileHover={{ scale: 1.05, boxShadow: "0 0 40px var(--accent-glow)" }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => navigate('movies')}
+                                className="bg-accent text-white px-10 py-5 rounded-[24px] font-black uppercase tracking-widest text-sm italic transition-all flex items-center gap-3"
+                              >
+                                {t('Explore Movies')} <Film size={18} />
+                              </motion.button>
+                              <motion.button
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => navigate('support')}
+                                className="bg-white/5 hover:bg-white/10 text-white px-10 py-5 rounded-[24px] border border-white/10 font-black uppercase tracking-widest text-sm italic transition-all flex items-center gap-3"
+                              >
+                                {t('Meet Team')} <Users size={18} />
+                              </motion.button>
+                              <motion.a
+                                href="https://discord.gg/cuHARsXESW"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                whileHover={{ scale: 1.05, boxShadow: "0 0 40px rgba(88,101,242,0.4)" }}
+                                whileTap={{ scale: 0.95 }}
+                                className="bg-[#5865F2] text-white px-10 py-5 rounded-[24px] font-black uppercase tracking-widest text-sm italic transition-all flex items-center gap-3"
+                              >
+                                {t('Discord')} <DiscordIcon size={20} />
+                              </motion.a>
+                            </div>
+                          </motion.div>
+                        </div>
+
+                        {/* Recent Discoveries */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                          {[
+                            { title: 'Music', count: '1M', cat: 'music', icon: PlayCircle, color: 'from-cyan-500' },
+                            { title: 'Movies', count: MOVIES_DATA.length, cat: 'movies', icon: Film, color: 'from-blue-500' },
+                            { title: 'TV Shows', count: TV_DATA.length, cat: 'tv shows', icon: Tv, color: 'from-purple-500' },
+                            { title: 'Anime', count: ANIME_DATA.length, cat: 'anime', icon: Sparkles, color: 'from-pink-500' },
+                            { title: 'Manga', count: MANGA_DATA.length, cat: 'manga', icon: BookOpen, color: 'from-orange-500' },
+                            { title: 'Games', count: '500', cat: 'games', icon: Gamepad2, color: 'from-emerald-500' },
+                          ].map((stat, i) => (
+                            <motion.div
+                              key={i}
+                              whileHover={{ y: -10 }}
+                              onClick={() => navigate(stat.cat as Category)}
+                              className="bg-surface p-8 rounded-[40px] border border-white/5 hover:border-accent/30 transition-all cursor-pointer group"
+                            >
+                              <div className={`w-16 h-16 rounded-2xl bg-bg border border-white/5 flex items-center justify-center mb-6 text-accent group-hover:scale-110 group-hover:bg-accent group-hover:text-white transition-all`}>
+                                <stat.icon size={32} />
+                              </div>
+                              <h3 className="text-3xl font-black text-white mb-2 italic">
+                                {stat.count}+
+                              </h3>
+                              <p className="text-text-secondary text-sm font-black uppercase tracking-widest">
+                                {t(stat.title)}
+                              </p>
+                            </motion.div>
+                          ))}
+                        </div>
+
+                        {/* Featured Staff Section */}
+                        <div className="bg-bg rounded-[50px] p-12 border border-surface-hover">
+                           <div className="flex flex-col md:flex-row items-center justify-between mb-16 gap-8">
+                              <div className="text-left">
+                                <h2 className="text-5xl font-black uppercase italic text-white tracking-tighter mb-4">{t('Lead Team')}</h2>
+                                <p className="text-text-secondary font-bold uppercase tracking-widest text-xs">{t('The creators behind the vision')}</p>
+                              </div>
+                              <motion.button 
+                                whileHover={{ x: 10 }}
+                                onClick={() => navigate('support')}
+                                className="flex items-center gap-3 text-accent font-black uppercase tracking-widest text-sm"
+                              >
+                                {t('View All Staff')} <Zap size={18} />
+                              </motion.button>
+                           </div>
+                           <div className="flex flex-wrap justify-center gap-12">
+                             {featuredStaff.map((staff, i) => (
+                               <motion.div 
+                                 key={i}
+                                 whileHover={{ scale: 1.05 }}
+                                 className="flex flex-col items-center group cursor-pointer"
+                                 onClick={() => handleStaffClick(staff)}
+                               >
+                                 <div className="w-32 h-32 rounded-full overflow-hidden border-2 border-surface-hover group-hover:border-accent transition-all duration-300 mb-6 shadow-2xl">
+                                   <img src={staff.img} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                                 </div>
+                                 <h4 className="text-white font-black uppercase italic tracking-tighter text-lg">{staff.name}</h4>
+                                 <p className="text-accent text-[10px] font-black uppercase tracking-[0.3em]">{staff.role}</p>
+                               </motion.div>
+                             ))}
+                           </div>
+                        </div>
+
+                        {/* Quick Stats/About */}
+                        <div className="text-center py-12">
+                          <div className="flex flex-wrap justify-center gap-12 text-white/50 text-[10px] font-black uppercase tracking-[0.2em]">
+                            <span>Streaming</span>
+                            <span>Gaming</span>
+                            <span>Socials</span>
+                            <span>Anime</span>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+
                     {activeCategory === 'support' && (
                       <motion.div 
                         initial={{ opacity: 0, y: 20 }}
@@ -1094,81 +1218,6 @@ const App: React.FC = () => {
       </div>
     </main>
       </div>
-
-      <AnimatePresence>
-        {selectedStaff && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-bg/90 backdrop-blur-md" 
-            onClick={() => setSelectedStaff(null)}
-          >
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="bg-bg border border-white/10 rounded-[40px] max-w-5xl w-full h-[85vh] flex flex-col shadow-[0_0_100px_rgba(0,0,0,0.5)] relative overflow-hidden" 
-              onClick={e => e.stopPropagation()}
-            >
-              {/* Header */}
-              <div className="flex items-center justify-between p-6 border-b border-white/5 bg-surface/50 backdrop-blur-lg shrink-0">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full overflow-hidden border border-accent/20">
-                    <img src={selectedStaff.img} alt="" className="w-full h-full object-cover" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-black uppercase tracking-tighter text-white">
-                      <TranslatedText text={selectedStaff.name} />'s Profile
-                    </h3>
-                    <p className="text-[10px] uppercase tracking-widest text-text-muted font-bold">
-                      {selectedStaff.role}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <motion.a 
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    href={selectedStaff.link}
-                    target="_blank"
-                    className="p-3 bg-white/5 hover:bg-white/10 rounded-2xl transition-colors text-white border border-white/5"
-                    title="Open in new tab"
-                  >
-                    <ExternalLink size={18} />
-                  </motion.a>
-                  <button 
-                    onClick={() => setSelectedStaff(null)}
-                    className="p-3 bg-accent/10 hover:bg-accent text-accent hover:text-white rounded-2xl transition-all border border-accent/20"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Iframe Content */}
-              <div className="flex-1 bg-black relative">
-                <iframe 
-                  src={selectedStaff.link} 
-                  className="w-full h-full border-none"
-                  title={`${selectedStaff.name}'s bio`}
-                  loading="lazy"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-                <div className="absolute inset-0 pointer-events-none border border-white/5 shadow-[inset_0_0_50px_rgba(0,0,0,0.5)]"></div>
-              </div>
-
-              {/* Bottom Info */}
-              <div className="p-4 bg-surface-active/50 text-center shrink-0">
-                <p className="text-[9px] uppercase tracking-[0.3em] font-black text-white/30 italic">
-                  Embedded bio via {new URL(selectedStaff.link).hostname}
-                </p>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <AnimatePresence>
         {selectedItem && (

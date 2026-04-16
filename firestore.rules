@@ -229,7 +229,7 @@ service cloud.firestore {
     }
 
     match /uploads/{uploadId} {
-      allow read: if isAuthenticated() && !isBanned();
+      allow read: if request.auth == null || !isBanned();
       allow create, update: if isAdmin() && isValidUpload(request.resource.data) && !isBanned();
       allow delete: if isAdmin() && !isBanned();
     }

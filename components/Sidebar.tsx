@@ -36,6 +36,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeCategory, logoUrl, onLogoChange
   };
 
   const navItems = [
+    { id: 'home' as Category, label: 'Home', icon: Home },
     { id: 'donate' as Category, label: 'Donate', icon: DollarSign },
     { id: 'support' as Category, label: 'Devs', icon: Heart },
     { id: 'socials' as Category, label: 'Socials', icon: Globe },
