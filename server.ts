@@ -43,8 +43,10 @@ app.use((req, res, next) => {
   const isAsset = req.url.match(/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|otf|map|tsx|ts|jsx|json)$/);
   const isApi = req.url.startsWith('/api');
   
-  if (isApi || (!isAsset && req.url !== '/')) {
-    console.log(`[Server] ${new Date().toISOString()} ${req.method} ${req.url}`);
+  if (isApi) {
+    console.log(`[Server] API Request: ${new Date().toISOString()} ${req.method} ${req.url}`);
+  } else if (!isAsset && req.url !== '/') {
+    console.log(`[Server] Navigation: ${new Date().toISOString()} ${req.method} ${req.url}`);
   }
   next();
 });
@@ -59,58 +61,9 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString(), env: process.env.NODE_ENV });
 });
 
-// Infamous Music Proxy
-app.get('/api/music/infamous/image', async (req, res) => {
-  try {
-    const url = req.query.url as string;
-    if (!url) return res.status(400).json({ error: 'URL required' });
-    
-    console.log(`[Server] Proxying image: ${url}`);
-    const response = await axios.get(url, {
-      headers: {
-        'Referer': 'https://infamous.qzz.io/',
-        'User-Agent': MONOCHROME_HEADERS['User-Agent']
-      },
-      responseType: 'arraybuffer',
-      timeout: 10000
-    });
-    res.set('Content-Type', response.headers['content-type']);
-    res.send(Buffer.from(response.data, 'binary'));
-  } catch (error: any) {
-    console.error('Infamous image proxy error:', error.message);
-    res.status(500).json({ error: 'Failed to fetch image' });
-  }
-});
+// --- MUSIC SERVICES START ---
 
-// Mount infamous proxy at root with pathFilter to be explicit
-app.use('/api/music/infamous', createProxyMiddleware({
-  target: 'https://infamous.qzz.io',
-  changeOrigin: true,
-  pathRewrite: {
-    '^/api/music/infamous': ''
-  },
-  on: {
-    proxyReq: (proxyReq, req, res) => {
-      console.log(`[Proxy] Forwarding ${req.method} ${req.url} to ${proxyReq.protocol}//${proxyReq.host}${proxyReq.path}`);
-      proxyReq.setHeader('Referer', 'https://infamous.qzz.io/');
-      proxyReq.setHeader('User-Agent', MONOCHROME_HEADERS['User-Agent']);
-      proxyReq.setHeader('Origin', 'https://infamous.qzz.io');
-    },
-    proxyRes: (proxyRes, req, res) => {
-      console.log(`[Proxy] Target responded with ${proxyRes.statusCode} for ${req.url}`);
-    },
-    error: (err, req, res) => {
-      console.error('[Proxy Error]', err);
-      if ('status' in res && typeof (res as any).status === 'function') {
-        (res as any).status(500).json({ error: 'Proxy failed', message: err.message });
-      } else {
-        res.end(JSON.stringify({ error: 'Proxy failed', message: err.message }));
-      }
-    }
-  }
-}));
-
-// YTMusic Search Fallback
+// 1. YTMusic Setup & Routes
 const ytmusic = new YTMusic();
 let isYTMusicInitialized = false;
 
@@ -168,45 +121,11 @@ app.get('/api/music/youtube/stream/:id', async (req, res) => {
   }
 });
 
-// GA4 Proxy Route
-app.get('/api/analytics/data', async (req, res) => {
-  try {
-    const propertyId = '527976762';
-    if (!process.env.GA4_SERVICE_ACCOUNT_JSON) {
-        return res.status(500).json({ error: 'GA4 credentials not configured' });
-    }
-    
-    let credentials;
-    try {
-      credentials = JSON.parse(process.env.GA4_SERVICE_ACCOUNT_JSON);
-    } catch (e) {
-      return res.status(500).json({ error: 'Invalid GA4 credentials format' });
-    }
-
-    const analyticsDataClient = new BetaAnalyticsDataClient({
-        credentials
-    });
-
-    const [response] = await analyticsDataClient.runReport({
-      property: `properties/${propertyId}`,
-      dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
-      metrics: [{ name: 'activeUsers' }],
-      dimensions: [{ name: 'date' }],
-    });
-
-    res.json(response);
-  } catch (error) {
-    console.error('GA4 error:', error);
-    res.status(500).json({ error: 'Failed to fetch analytics' });
-  }
-});
-
-// Music Proxy Routes
-// Monochrome, etc routes will follow...
-
+// 2. Monochrome.tf Routes
 app.get('/api/music/monochrome/search', async (req, res) => {
   try {
     const query = req.query.s as string;
+    console.log(`[Server] Monochrome search: ${query}`);
     if (!query) return res.status(400).json({ error: 'Query required' });
     
     const monochromeMirrors = [
@@ -229,6 +148,7 @@ app.get('/api/music/monochrome/search', async (req, res) => {
 
         const contentType = response.headers['content-type'] || '';
         if (contentType.includes('application/json')) {
+          console.log(`[Server] Monochrome search success via ${url}`);
           return res.json(response.data);
         }
       } catch (e: any) {
@@ -256,8 +176,7 @@ app.get('/api/music/monochrome/track/:id', async (req, res) => {
       `https://virginia.monochrome.tf/track/?id=${id}&quality=${quality}`,
       `https://frankfurt.monochrome.tf/track/?id=${id}&quality=${quality}`,
       `https://api.monochrome.tf/track/?id=${id}&quality=${quality}`,
-      `https://api.monochrome.tf/track?id=${id}&quality=${quality}`,
-      `https://api.monochrome.tf/v1/track?id=${id}&quality=${quality}`,
+      `https://monochrome.tf/track/?id=${id}&quality=${quality}`,
       `https://monochrome.tf/api/track?id=${id}&quality=${quality}`
     ];
 
@@ -295,9 +214,7 @@ app.get('/api/music/monochrome/stream/:id', async (req, res) => {
       `https://virginia.monochrome.tf/track/?id=${id}&quality=${quality}`,
       `https://frankfurt.monochrome.tf/track/?id=${id}&quality=${quality}`,
       `https://api.monochrome.tf/track/?id=${id}&quality=${quality}`,
-      `https://api.monochrome.tf/track?id=${id}&quality=${quality}`,
-      `https://api.monochrome.tf/v1/track?id=${id}&quality=${quality}`,
-      `https://monochrome.tf/api/track?id=${id}&quality=${quality}`
+      `https://monochrome.tf/track/?id=${id}&quality=${quality}`
     ];
 
     for (const url of monochromeTrackMirrors) {
@@ -312,12 +229,10 @@ app.get('/api/music/monochrome/stream/:id', async (req, res) => {
         if (contentType.includes('application/json')) {
           const data = response.data;
           
-          // Some mirrors might return direct URL
           if (data?.url) {
             return res.redirect(data.url);
           }
           
-          // Otherwise, check for manifest
           const manifestData = data?.data || data;
           if (manifestData?.manifest) {
             try {
@@ -327,15 +242,6 @@ app.get('/api/music/monochrome/stream/:id', async (req, res) => {
                 const parsedManifest = JSON.parse(decodedManifest);
                 if (parsedManifest.urls && parsedManifest.urls.length > 0) {
                   return res.redirect(parsedManifest.urls[0]);
-                }
-              } else if (manifestData.manifestMimeType === 'application/dash+xml') {
-                // DASH manifest parsing is complex, but we can try to extract the first media URL
-                const match = decodedManifest.match(/<SegmentTemplate[^>]*initialization="([^"]+)"/);
-                if (match && match[1]) {
-                  // This is just the init segment, not the full stream.
-                  // For audio elements, DASH is not natively supported without dash.js.
-                  // We should probably fall back to a lower quality if we get DASH.
-                  console.warn('Received DASH manifest, which is not supported natively by <audio>');
                 }
               }
             } catch (err) {
@@ -352,6 +258,78 @@ app.get('/api/music/monochrome/stream/:id', async (req, res) => {
   } catch (error) {
     console.error('Stream proxy error:', error);
     res.status(500).json({ error: 'Failed to fetch stream' });
+  }
+});
+
+// 3. Infamous Music Proxy (Legacy/Image support)
+app.get('/api/music/infamous/image', async (req, res) => {
+  try {
+    const url = req.query.url as string;
+    if (!url) return res.status(400).json({ error: 'URL required' });
+    
+    const response = await axios.get(url, {
+      headers: {
+        'Referer': 'https://infamous.qzz.io/',
+        'User-Agent': MONOCHROME_HEADERS['User-Agent']
+      },
+      responseType: 'arraybuffer',
+      timeout: 10000
+    });
+    res.set('Content-Type', response.headers['content-type']);
+    res.send(Buffer.from(response.data, 'binary'));
+  } catch (error: any) {
+    console.error('Infamous image proxy error:', error.message);
+    res.status(500).json({ error: 'Failed to fetch image' });
+  }
+});
+
+app.use('/api/music/infamous', createProxyMiddleware({
+  target: 'https://infamous.qzz.io',
+  changeOrigin: true,
+  pathRewrite: {
+    '^/api/music/infamous': ''
+  },
+  on: {
+    proxyReq: (proxyReq, req, res) => {
+      proxyReq.setHeader('Referer', 'https://infamous.qzz.io/');
+      proxyReq.setHeader('User-Agent', MONOCHROME_HEADERS['User-Agent']);
+      proxyReq.setHeader('Origin', 'https://infamous.qzz.io');
+    }
+  }
+}));
+
+// --- MUSIC SERVICES END ---
+
+// GA4 Proxy Route
+app.get('/api/analytics/data', async (req, res) => {
+  try {
+    const propertyId = '527976762';
+    if (!process.env.GA4_SERVICE_ACCOUNT_JSON) {
+        return res.status(500).json({ error: 'GA4 credentials not configured' });
+    }
+    
+    let credentials;
+    try {
+      credentials = JSON.parse(process.env.GA4_SERVICE_ACCOUNT_JSON);
+    } catch (e) {
+      return res.status(500).json({ error: 'Invalid GA4 credentials format' });
+    }
+
+    const analyticsDataClient = new BetaAnalyticsDataClient({
+        credentials
+    });
+
+    const [response] = await analyticsDataClient.runReport({
+      property: `properties/${propertyId}`,
+      dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
+      metrics: [{ name: 'activeUsers' }],
+      dimensions: [{ name: 'date' }],
+    });
+
+    res.json(response);
+  } catch (error) {
+    console.error('GA4 error:', error);
+    res.status(500).json({ error: 'Failed to fetch analytics' });
   }
 });
 
