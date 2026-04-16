@@ -132,7 +132,7 @@ const ScrambleEffect: React.FC = () => {
 const getInitialCategory = (): Category => {
   const path = window.location.pathname.substring(1).toLowerCase();
   const normalizedPath = path.replace('-', ' ') as Category;
-  const validCategories: Category[] = ['home', 'movies', 'tv shows', 'anime', 'manga', 'proxies', 'partners', 'dev', 'support', 'donate', 'apps', 'browser', 'settings', 'music', 'games'];
+  const validCategories: Category[] = ['home', 'movies', 'tv shows', 'anime', 'manga', 'proxies', 'partners', 'dev', 'support', 'donate', 'apps', 'browser', 'settings', 'music', 'games', 'socials'];
   
   if (validCategories.includes(normalizedPath)) {
     return normalizedPath;
@@ -438,7 +438,7 @@ const App: React.FC = () => {
     const handlePopState = () => {
       const path = window.location.pathname.substring(1).toLowerCase();
       const normalizedPath = path.replace('-', ' ') as Category;
-      const validCategories: Category[] = ['home', 'movies', 'tv shows', 'anime', 'manga', 'proxies', 'partners', 'dev', 'support', 'donate', 'apps', 'browser', 'settings', 'music', 'games'];
+      const validCategories: Category[] = ['home', 'movies', 'tv shows', 'anime', 'manga', 'proxies', 'partners', 'dev', 'support', 'donate', 'apps', 'browser', 'settings', 'music', 'games', 'socials'];
       
       if (validCategories.includes(normalizedPath)) {
         setActiveCategory(normalizedPath);
@@ -1028,6 +1028,63 @@ const App: React.FC = () => {
                     )}
 
                     {activeCategory === 'partners' && <Partners />}
+
+                    {activeCategory === 'socials' && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        className="py-20 flex flex-col items-center justify-center min-h-[60vh]"
+                      >
+                        <div className="flex flex-wrap justify-center gap-12 md:gap-24 mb-16">
+                          {/* TikTok */}
+                          <motion.div 
+                            whileHover={{ scale: 1.1, rotate: -5 }}
+                            whileTap={{ scale: 0.95 }}
+                            className="flex flex-col items-center gap-6 group cursor-pointer"
+                          >
+                            <div className="w-32 h-32 md:w-40 md:h-40 bg-surface-hover rounded-[40px] border border-white/5 flex items-center justify-center relative overflow-hidden transition-all duration-500 group-hover:border-accent/40 group-hover:shadow-[0_0_50px_rgba(255,255,255,0.05)]">
+                              <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                              <svg viewBox="0 0 24 24" fill="currentColor" className="w-16 h-16 md:w-20 md:h-20 text-white transition-transform duration-500 group-hover:scale-110">
+                                <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.17-2.89-.6-4.13-1.47V18.77a6.738 6.738 0 0 1-1.9 4.63 6.712 6.712 0 0 1-4.78 1.9c-1.71.02-3.41-.6-4.69-1.74a6.723 6.723 0 0 1-2.13-4.81c-.03-1.71.6-3.41 1.74-4.69a6.712 6.712 0 0 1 4.81-2.12c.8 0 1.59.13 2.34.39V12.52a2.67 2.67 0 0 0-2.34-.38 2.674 2.674 0 0 0-1.9 1.9 2.674 2.674 0 0 0 .38 2.34c.54.76 1.41 1.19 2.34 1.18.8 0 1.59-.39 2.06-1.04.13-.19.22-.4.28-.61.01-1.31.01-2.61.01-3.92V0z"/>
+                              </svg>
+                            </div>
+                            <span className="text-sm font-black uppercase tracking-[0.3em] text-text-secondary group-hover:text-white transition-colors">TikTok</span>
+                          </motion.div>
+
+                          {/* Instagram */}
+                          <motion.div 
+                            whileHover={{ scale: 1.1, rotate: 5 }}
+                            whileTap={{ scale: 0.95 }}
+                            className="flex flex-col items-center gap-6 group cursor-pointer"
+                          >
+                            <div className="w-32 h-32 md:w-40 md:h-40 bg-surface-hover rounded-[40px] border border-white/5 flex items-center justify-center relative overflow-hidden transition-all duration-500 group-hover:border-accent/40 group-hover:shadow-[0_0_50px_rgba(255,255,255,0.05)]">
+                              <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-16 h-16 md:w-20 md:h-20 text-white transition-transform duration-500 group-hover:scale-110">
+                                <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+                                <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
+                                <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
+                              </svg>
+                            </div>
+                            <span className="text-sm font-black uppercase tracking-[0.3em] text-text-secondary group-hover:text-white transition-colors">Instagram</span>
+                          </motion.div>
+                        </div>
+
+                        <div className="text-center">
+                          <motion.div
+                            initial={{ width: 0 }}
+                            animate={{ width: 60 }}
+                            transition={{ delay: 0.5, duration: 0.8 }}
+                            className="h-1 bg-accent mx-auto mb-6 rounded-full"
+                          ></motion.div>
+                          <h2 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter text-white mb-4">
+                            WIP (Soon)
+                          </h2>
+                          <p className="text-text-secondary text-xs uppercase tracking-[0.5em] font-bold opacity-50">
+                            Our social channels are currently under construction
+                          </p>
+                        </div>
+                      </motion.div>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
@@ -1044,22 +1101,69 @@ const App: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-bg/80 backdrop-blur-sm" 
+            className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-bg/90 backdrop-blur-md" 
             onClick={() => setSelectedStaff(null)}
           >
             <motion.div 
-              initial={{ scale: 0.9, y: 20 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.9, y: 20 }}
-              className="bg-bg border border-accent/20 p-8 rounded-3xl max-w-md w-full text-center shadow-[0_0_50px_var(--accent-glow-dim)] relative" 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-bg border border-white/10 rounded-[40px] max-w-5xl w-full h-[85vh] flex flex-col shadow-[0_0_100px_rgba(0,0,0,0.5)] relative overflow-hidden" 
               onClick={e => e.stopPropagation()}
             >
-              <ShieldAlert size={48} className="mx-auto text-accent mb-6" />
-              <h3 className="text-2xl font-black italic uppercase text-white mb-4">{t('External Link Warning')}</h3>
-              <p className="text-text-muted mb-8 font-medium">{t('You are about to leave Chillzone to view')} <span className="text-white font-bold"><TranslatedText text={selectedStaff.name} />'s</span> {t('socials. Proceed with caution.')}</p>
-              <div className="flex gap-4">
-                <motion.button whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} onClick={() => setSelectedStaff(null)} className="flex-1 py-4 rounded-xl bg-surface-active text-white font-bold uppercase tracking-widest text-xs hover:bg-surface-hover transition-colors">{t('Abort')}</motion.button>
-                <motion.a whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} href={selectedStaff.link} target="_blank" onClick={() => setSelectedStaff(null)} className="flex-1 py-4 rounded-xl bg-accent text-white font-bold uppercase tracking-widest text-xs hover:bg-accent/80 transition-colors flex items-center justify-center gap-2">{t('Proceed')} <ExternalLink size={14} /></motion.a>
+              {/* Header */}
+              <div className="flex items-center justify-between p-6 border-b border-white/5 bg-surface/50 backdrop-blur-lg shrink-0">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full overflow-hidden border border-accent/20">
+                    <img src={selectedStaff.img} alt="" className="w-full h-full object-cover" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black uppercase tracking-tighter text-white">
+                      <TranslatedText text={selectedStaff.name} />'s Profile
+                    </h3>
+                    <p className="text-[10px] uppercase tracking-widest text-text-muted font-bold">
+                      {selectedStaff.role}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <motion.a 
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    href={selectedStaff.link}
+                    target="_blank"
+                    className="p-3 bg-white/5 hover:bg-white/10 rounded-2xl transition-colors text-white border border-white/5"
+                    title="Open in new tab"
+                  >
+                    <ExternalLink size={18} />
+                  </motion.a>
+                  <button 
+                    onClick={() => setSelectedStaff(null)}
+                    className="p-3 bg-accent/10 hover:bg-accent text-accent hover:text-white rounded-2xl transition-all border border-accent/20"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Iframe Content */}
+              <div className="flex-1 bg-black relative">
+                <iframe 
+                  src={selectedStaff.link} 
+                  className="w-full h-full border-none"
+                  title={`${selectedStaff.name}'s bio`}
+                  loading="lazy"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+                <div className="absolute inset-0 pointer-events-none border border-white/5 shadow-[inset_0_0_50px_rgba(0,0,0,0.5)]"></div>
+              </div>
+
+              {/* Bottom Info */}
+              <div className="p-4 bg-surface-active/50 text-center shrink-0">
+                <p className="text-[9px] uppercase tracking-[0.3em] font-black text-white/30 italic">
+                  Embedded bio via {new URL(selectedStaff.link).hostname}
+                </p>
               </div>
             </motion.div>
           </motion.div>

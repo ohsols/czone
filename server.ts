@@ -9,6 +9,7 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { BetaAnalyticsDataClient } from '@google-analytics/data';
 import YTMusic from 'ytmusic-api';
+import ytStream from 'yt-stream';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -46,10 +47,109 @@ app.use((req, res, next) => {
   next();
 });
 
+// --------------------------------------------------------------------------
+// API ROUTES START
+// --------------------------------------------------------------------------
+
 // Health check
 app.get('/api/health', (req, res) => {
   console.log('[Server] Health check requested');
-  res.json({ status: 'ok', time: new Date().toISOString() });
+  res.json({ status: 'ok', time: new Date().toISOString(), env: process.env.NODE_ENV });
+});
+
+// Infamous Music Proxy
+app.get('/api/music/infamous/image', async (req, res) => {
+  try {
+    const url = req.query.url as string;
+    if (!url) return res.status(400).json({ error: 'URL required' });
+    
+    console.log(`[Server] Proxying image: ${url}`);
+    const response = await axios.get(url, {
+      headers: {
+        'Referer': 'https://infamous.qzz.io/',
+        'User-Agent': MONOCHROME_HEADERS['User-Agent']
+      },
+      responseType: 'arraybuffer',
+      timeout: 10000
+    });
+    res.set('Content-Type', response.headers['content-type']);
+    res.send(Buffer.from(response.data, 'binary'));
+  } catch (error: any) {
+    console.error('Infamous image proxy error:', error.message);
+    res.status(500).json({ error: 'Failed to fetch image' });
+  }
+});
+
+// Mount infamous proxy at root with pathFilter to be explicit
+app.use(createProxyMiddleware({
+  pathFilter: '/api/music/infamous',
+  target: 'https://infamous.qzz.io',
+  changeOrigin: true,
+  pathRewrite: {
+    '^/api/music/infamous': '/api'
+  },
+  on: {
+    proxyReq: (proxyReq, req, res) => {
+      console.log(`[Proxy] Forwarding ${req.method} ${req.url} to ${proxyReq.protocol}//${proxyReq.host}${proxyReq.path}`);
+      proxyReq.setHeader('Referer', 'https://infamous.qzz.io/');
+      proxyReq.setHeader('User-Agent', MONOCHROME_HEADERS['User-Agent']);
+      proxyReq.setHeader('Origin', 'https://infamous.qzz.io');
+    },
+    proxyRes: (proxyRes, req, res) => {
+      console.log(`[Proxy] Target responded with ${proxyRes.statusCode} for ${req.url}`);
+    },
+    error: (err, req, res) => {
+      console.error('[Proxy Error]', err);
+      if ('status' in res && typeof (res as any).status === 'function') {
+        (res as any).status(500).json({ error: 'Proxy failed', message: err.message });
+      } else {
+        res.end(JSON.stringify({ error: 'Proxy failed', message: err.message }));
+      }
+    }
+  }
+}));
+
+// YTMusic Search Fallback
+const ytmusic = new YTMusic();
+app.get('/api/music/youtube/search', async (req, res) => {
+  try {
+    const query = req.query.q as string;
+    if (!query) return res.status(400).json({ error: 'Query required' });
+    
+    console.log(`[Server] YTMusic search: ${query}`);
+    const tracks = await ytmusic.searchSongs(query);
+    const results = tracks.map(track => ({
+      id: track.videoId,
+      title: track.name,
+      artist: track.artist?.name || 'Unknown Artist',
+      duration: track.duration || 0,
+      thumbnail: track.thumbnails?.[0]?.url || null,
+      source: 'youtube'
+    }));
+    res.json(results);
+  } catch (error: any) {
+    console.error('YTMusic search error:', error);
+    res.status(500).json({ error: 'YouTube search failed' });
+  }
+});
+
+app.get('/api/music/youtube/stream/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    console.log(`[Server] YTMusic stream requested: ${id}`);
+    const stream = await ytStream.stream(id, {
+      quality: 'high',
+      type: 'audio',
+      highWaterMark: 1024 * 1024 * 4,
+      download: true
+    } as any);
+    
+    res.set('Content-Type', 'audio/mpeg');
+    stream.stream.pipe(res);
+  } catch (error: any) {
+    console.error('YTMusic stream error:', error);
+    res.status(500).json({ error: 'YouTube stream failed' });
+  }
 });
 
 // GA4 Proxy Route
@@ -86,55 +186,7 @@ app.get('/api/analytics/data', async (req, res) => {
 });
 
 // Music Proxy Routes
-app.get('/api/music/infamous/image', async (req, res) => {
-  try {
-    const url = req.query.url as string;
-    if (!url) return res.status(400).json({ error: 'URL required' });
-    
-    console.log(`[Server] Proxying image: ${url}`);
-    const response = await axios.get(url, {
-      headers: {
-        'Referer': 'https://infamous.qzz.io/',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
-      },
-      responseType: 'arraybuffer'
-    });
-    res.set('Content-Type', response.headers['content-type']);
-    res.send(Buffer.from(response.data, 'binary'));
-  } catch (error: any) {
-    console.error('Infamous image proxy error:', error.message);
-    res.status(500).json({ error: 'Failed to fetch image' });
-  }
-});
-
-// Mount at root so pathRewrite sees the full path, or use the prefix and rewrite from ^/
-app.use('/api/music/infamous', (req, res, next) => {
-  console.log(`[Server] Infamous proxy request: ${req.method} ${req.url}`);
-  next();
-}, createProxyMiddleware({
-  target: 'https://infamous.qzz.io',
-  changeOrigin: true,
-  pathRewrite: (path, req) => {
-    const rewritten = '/api' + path;
-    console.log(`[Proxy] Rewriting ${path} to ${rewritten}`);
-    return rewritten;
-  },
-  on: {
-    proxyReq: (proxyReq, req, res) => {
-      console.log(`[Proxy] Forwarding ${req.method} ${req.url} to ${proxyReq.protocol}//${proxyReq.host}${proxyReq.path}`);
-      proxyReq.setHeader('Referer', 'https://infamous.qzz.io/');
-      proxyReq.setHeader('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36');
-      proxyReq.setHeader('Origin', 'https://infamous.qzz.io');
-    },
-    proxyRes: (proxyRes, req, res) => {
-      console.log(`[Proxy] Received response ${proxyRes.statusCode} from target for ${req.url}`);
-    },
-    error: (err, req, res) => {
-      console.error('[Proxy Error]', err);
-      res.status(500).json({ error: 'Proxy failed', message: err.message });
-    }
-  }
-}));
+// Monochrome, etc routes will follow...
 
 app.get('/api/music/monochrome/search', async (req, res) => {
   try {
