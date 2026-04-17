@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Trash2, Edit2, Save, AlertCircle, CheckCircle2, ShieldCheck, Users, Megaphone, Activity, Send, Check, Ban, UserCheck, Upload, Loader2, ListMusic, Settings as SettingsIcon } from 'lucide-react';
+import { X, Plus, Trash2, Edit2, Save, AlertCircle, CheckCircle2, ShieldCheck, Users, Megaphone, Activity, Send, Check, Ban, UserCheck, Upload, Loader2, Database, Settings as SettingsIcon } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { db, auth, OperationType, handleFirestoreError, isQuotaExceeded } from '../firebase';
 import { collection, addDoc, query, orderBy, deleteDoc, doc, updateDoc, serverTimestamp, Timestamp, setDoc, where, getDocs, getDoc, limit, onSnapshot } from 'firebase/firestore';
@@ -245,7 +245,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
           setIsLoading(false);
         });
       } else if (activeTab === 'suggestions') {
-        const q = query(collection(db, 'suggestions'), orderBy('createdAt', 'desc'), limit(500));
+        const q = query(collection(db, 'suggestions'), orderBy('createdAt', 'desc'), limit(100));
         unsubscribe = onSnapshot(q, (snapshot) => {
           console.log(`[AdminDashboard] Suggestions snapshot received: ${snapshot.size} docs`);
           setSuggestions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Suggestion[]);
@@ -255,7 +255,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
           setIsLoading(false);
         });
       } else if (activeTab === 'admins') {
-        const q = query(collection(db, 'allowed_admins'), orderBy('createdAt', 'desc'), limit(500));
+        const q = query(collection(db, 'allowed_admins'), orderBy('createdAt', 'desc'), limit(100));
         unsubscribe = onSnapshot(q, (snapshot) => {
           console.log(`[AdminDashboard] AllowedAdmins snapshot received: ${snapshot.size} docs`);
           setAllowedAdmins(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AllowedAdmin[]);
@@ -265,7 +265,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
           setIsLoading(false);
         });
       } else if (activeTab === 'users' || activeTab === 'banned') {
-        const q = query(collection(db, 'users'), limit(5000));
+        // Increased limit from 100 to 3000 as requested.
+        const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(100));
         unsubscribe = onSnapshot(q, (snapshot) => {
           console.log(`[AdminDashboard] Users snapshot received: ${snapshot.size} docs`);
           const fetchedUsers = snapshot.docs.map(doc => {
@@ -610,6 +611,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
           <X size={20} />
         </button>
       </div>
+      
+      {isQuotaExceeded && (
+         <div className="p-4 bg-red-500/10 border border-red-500/20 text-red-400 m-6 rounded-xl flex items-center gap-3">
+           <AlertCircle size={20} />
+           <span>Firestore quota exceeded. Real-time data updates and some administrative actions are currently unavailable.</span>
+         </div>
+      )}
 
       {/* Tabs */}
       <div className="flex border-b border-white/5 px-6 overflow-x-auto custom-scrollbar">
@@ -619,7 +627,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
           { id: 'appeals', icon: AlertCircle, label: 'Appeals' },
           { id: 'analytics', icon: Activity, label: 'Analytics' },
           { id: 'upload', icon: Upload, label: 'Upload' },
-          { id: 'manage_uploads', icon: ListMusic, label: 'Manage Uploads' },
+          { id: 'manage_uploads', icon: Database, label: 'Manage Uploads' },
           { id: 'system', icon: SettingsIcon, label: 'System' },
           ...(isSuperAdmin || isAdmin ? [
             { id: 'users', icon: Users, label: 'User Management' },

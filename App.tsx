@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import Sidebar from './components/Sidebar';
 import LibrarySection from './components/LibrarySection';
 import Settings, { defaultThemes } from './components/Settings';
-import MusicPlayer from './components/MusicPlayer';
 import Partners from './components/Partners';
 import UpdateLog from './components/UpdateLog';
 import DateTimeWidget from './components/DateTimeWidget';
@@ -18,9 +17,10 @@ import AdminDashboard from './components/AdminDashboard';
 import AuthModal from './components/AuthModal';
 import SuggestionModal from './components/SuggestionModal';
 import AppealModal from './components/AppealModal';
+import MusicPlayer from './components/MusicPlayer';
 import { SiteAnnouncements } from './components/SiteAnnouncements';
 import { UpdateOverlay } from './components/UpdateOverlay';
-import { Search, X, Film, Sparkles, BookOpen, Tv, SearchX, PlayCircle, Star, Globe, Users, ExternalLink, ShieldAlert, Zap, Activity, Loader2, Book, AlertTriangle, Settings as SettingsIcon, GitCommit, ChevronDown, LayoutGrid, Gamepad2, ShieldCheck, LogOut, LogIn, Send } from 'lucide-react';
+import { Search, X, Film, Sparkles, BookOpen, Tv, SearchX, PlayCircle, Star, Globe, Users, ExternalLink, ShieldAlert, Zap, Activity, Loader2, Book, AlertTriangle, Settings as SettingsIcon, GitCommit, ChevronDown, LayoutGrid, Gamepad2, ShieldCheck, LogOut, LogIn, Send, Music } from 'lucide-react';
 
 const DEFAULT_LOGO = "https://lh7-rt.googleusercontent.com/sitesz/AClOY7psM7n5cC2oRAQVLVss3LsgYFKWwE-KzTjGQvDYtnnp1f1j-Szl1OH6r1pZTXpsw0t_1es0N4P9E2cBl4Oqs-lOwNJdAt3H5CiGxGZKfBTzaYq_ybiI1qd2dWXWu_GRWMqLDD_3BL9tkNhJBNJhjBuuQWyvP1B19h6v0fblyHBwfxs-94c7?key=IannGxLsV9P5UfJ0NHPqqQ";
 
@@ -132,7 +132,7 @@ const ScrambleEffect: React.FC = () => {
 const getInitialCategory = (): Category => {
   const path = window.location.pathname.substring(1).toLowerCase();
   const normalizedPath = path.replace('-', ' ') as Category;
-  const validCategories: Category[] = ['home', 'movies', 'tv shows', 'anime', 'manga', 'proxies', 'partners', 'dev', 'support', 'donate', 'apps', 'browser', 'settings', 'music', 'games', 'socials'];
+  const validCategories: Category[] = ['home', 'movies', 'tv shows', 'anime', 'manga', 'proxies', 'partners', 'dev', 'support', 'donate', 'apps', 'browser', 'settings', 'games', 'socials'];
   
   if (validCategories.includes(normalizedPath)) {
     return normalizedPath;
@@ -226,7 +226,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isAuthReady || isQuotaExceeded) return;
 
-    const q = query(collection(db, 'uploads'), orderBy('createdAt', 'desc'), limit(50));
+    const q = query(collection(db, 'uploads'), orderBy('createdAt', 'desc'), limit(20));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setUploads(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, (error) => {
@@ -242,6 +242,9 @@ const App: React.FC = () => {
       if (errInfo && errInfo.error && (errInfo.error.includes('Quota limit exceeded') || errInfo.error.includes('Quota exceeded'))) {
         console.warn("Firebase Quota Exceeded. The free daily read/write limit for this database has been reached.");
         setIsQuotaExceededUI(true);
+        if (!hasShownQuotaPopup) {
+          setShowQuotaPopup(true);
+        }
       }
     };
 
@@ -436,7 +439,7 @@ const App: React.FC = () => {
     const handlePopState = () => {
       const path = window.location.pathname.substring(1).toLowerCase();
       const normalizedPath = path.replace('-', ' ') as Category;
-      const validCategories: Category[] = ['home', 'movies', 'tv shows', 'anime', 'manga', 'proxies', 'partners', 'dev', 'support', 'donate', 'apps', 'browser', 'settings', 'music', 'games', 'socials'];
+      const validCategories: Category[] = ['home', 'movies', 'tv shows', 'anime', 'manga', 'music', 'proxies', 'partners', 'dev', 'support', 'donate', 'apps', 'browser', 'settings', 'games', 'socials'];
       
       if (validCategories.includes(normalizedPath)) {
         setActiveCategory(normalizedPath);
@@ -635,11 +638,7 @@ const App: React.FC = () => {
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                   onClick={() => {
-                    if (isQuotaExceededUI && !hasShownQuotaPopup) {
-                      setShowQuotaPopup(true);
-                    } else {
-                      setIsAdminOpen(true);
-                    }
+                    setIsAdminOpen(true);
                   }}
                   className="w-10 h-10 flex items-center justify-center rounded-xl bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 transition-all duration-300 relative"
                   title="Admin Dashboard"
@@ -817,13 +816,9 @@ const App: React.FC = () => {
                 </motion.div>
               ) : (
                 <>
-                  <div className={activeCategory === 'music' ? 'block' : 'hidden'}>
-                    <MusicPlayer />
-                  </div>
                   <AnimatePresence mode="wait">
-                    {activeCategory !== 'music' && (
-                      <motion.div 
-                        key={activeCategory}
+                    <motion.div 
+                      key={activeCategory}
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
@@ -882,7 +877,6 @@ const App: React.FC = () => {
                         {/* Recent Discoveries */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                           {[
-                            { title: 'Music', count: '1M', cat: 'music', icon: PlayCircle, color: 'from-cyan-500' },
                             { title: 'Movies', count: MOVIES_DATA.length, cat: 'movies', icon: Film, color: 'from-blue-500' },
                             { title: 'TV Shows', count: TV_DATA.length, cat: 'tv shows', icon: Tv, color: 'from-purple-500' },
                             { title: 'Anime', count: ANIME_DATA.length, cat: 'anime', icon: Sparkles, color: 'from-pink-500' },
@@ -1127,6 +1121,12 @@ const App: React.FC = () => {
                       </>
                     )}
                     
+                    {activeCategory === 'music' && (
+                      <div className="py-12 px-6">
+                        <MusicPlayer />
+                      </div>
+                    )}
+                    
                     {activeCategory === 'proxies' && (
                       <motion.div 
                         initial={{ opacity: 0, y: 20 }}
@@ -1210,8 +1210,7 @@ const App: React.FC = () => {
                       </motion.div>
                     )}
                   </motion.div>
-                )}
-              </AnimatePresence>
+                </AnimatePresence>
             </>
           )}
         </div>

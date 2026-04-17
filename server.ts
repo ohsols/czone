@@ -9,8 +9,6 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { BetaAnalyticsDataClient } from '@google-analytics/data';
 import YTMusic from 'ytmusic-api';
-import ytStream from 'yt-stream';
-import { createProxyMiddleware } from 'http-proxy-middleware';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,19 +18,20 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
+const ytmusic = new YTMusic();
+let isYTMusicInitialized = false;
+
+async function initYTMusic() {
+  if (!isYTMusicInitialized) {
+    await ytmusic.initialize();
+    isYTMusicInitialized = true;
+  }
+}
+
 app.set('trust proxy', 1);
 
 // In-memory store
-const MAX_HISTORY = 100;
-
-const MONOCHROME_HEADERS = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-  'Accept': 'application/json, text/plain, */*',
-  'Accept-Language': 'en-US,en;q=0.9',
-  'Cache-Control': 'no-cache',
-  'Pragma': 'no-cache',
-  'Referer': 'https://monochrome.tf/'
-};
+const MAX_HISTORY = 3000;
 
 app.use(cors());
 app.use(express.json());
@@ -44,9 +43,9 @@ app.use((req, res, next) => {
   const isApi = req.url.startsWith('/api');
   
   if (isApi) {
-    console.log(`[Server] API Request: ${new Date().toISOString()} ${req.method} ${req.url}`);
-  } else if (!isAsset && req.url !== '/') {
-    console.log(`[Server] Navigation: ${new Date().toISOString()} ${req.method} ${req.url}`);
+    console.log(`[Server] ${new Date().toISOString()} API REQUEST: ${req.method} ${req.url}`);
+  } else if (!isAsset && req.url !== '/' && !req.url.startsWith('/@')) {
+    console.log(`[Server] ${new Date().toISOString()} NAVIGATION: ${req.method} ${req.url}`);
   }
   next();
 });
@@ -61,244 +60,210 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString(), env: process.env.NODE_ENV });
 });
 
-// --- MUSIC SERVICES START ---
+import https from 'https';
 
-// 1. YTMusic Setup & Routes
-const ytmusic = new YTMusic();
-let isYTMusicInitialized = false;
+const httpsAgent = new https.Agent({
+  rejectUnauthorized: false
+});
 
-async function ensureYTMusic() {
-  if (!isYTMusicInitialized) {
+// Music Search
+app.get('/api/music/search', async (req, res) => {
+  const query = req.query.s as string;
+  if (!query) return res.status(400).json({ error: 'Missing search query' });
+
+  // List of Monochrome/Hi-Fi instances from the GitHub document
+  const monoInstances = [
+    'https://monochrome-api.samidy.com',
+    'https://api.monochrome.tf',
+    'https://hifi.geeked.wtf',
+    'https://hund.qqdl.site',
+    'https://katze.qqdl.site'
+  ];
+
+  for (const base of monoInstances) {
     try {
-      await ytmusic.initialize();
-      isYTMusicInitialized = true;
-      console.log('[Server] YTMusic initialized');
-    } catch (err) {
-      console.error('[Server] YTMusic initialization failed:', err);
+      console.log(`[Music] Searching Monochrome instance ${base} for: ${query}`);
+      const response = await axios.get(`${base}/search/`, {
+        params: { s: query, limit: 30 },
+        headers: { 
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+          'Referer': 'https://monochrome.tf/',
+          'Origin': 'https://monochrome.tf'
+        },
+        timeout: 6000,
+        httpsAgent: httpsAgent
+      });
+      
+      if (response.status !== 200) continue;
+
+      const items = response.data?.data?.items || [];
+      if (!Array.isArray(items) || items.length === 0) continue;
+      
+      const mapped = items.map((s: any) => {
+        let coverUrl = '';
+        if (s.album?.cover) {
+          const parts = s.album.cover.split('-');
+          if (parts.length === 5) {
+            coverUrl = `https://resources.tidal.com/images/${parts[0]}/${parts[1]}/${parts[2]}/${parts[3]}/${parts[4]}/640x640.jpg`;
+          } else {
+            coverUrl = `https://resources.tidal.com/images/${s.album.cover.replace(/-/g, '/')}/640x640.jpg`;
+          }
+        }
+
+        return {
+          id: s.id.toString(),
+          title: s.title,
+          artist: s.artist?.name || s.artists?.map((a: any) => a.name).join(', ') || 'Unknown Artist',
+          thumb: coverUrl || '',
+          duration: s.duration,
+          source: 'monochrome'
+        };
+      });
+
+      console.log(`[Music] Found ${mapped.length} results via ${base}`);
+      return res.json(mapped);
+
+    } catch (error: any) {
+      console.warn(`[Music] Monochrome instance ${base} failed: ${error.message}`);
     }
   }
-}
 
-app.get('/api/music/youtube/search', async (req, res) => {
+  // Final fallback to YTMusic if all Monochrome instances fail
+  console.warn(`[Music] All Monochrome searches failed, using YTMusic fallback`);
   try {
-    await ensureYTMusic();
-    const query = req.query.q as string;
-    if (!query) return res.status(400).json({ error: 'Query required' });
-    
-    console.log(`[Server] YTMusic search: ${query}`);
-    const tracks = await ytmusic.searchSongs(query);
-    const results = tracks.map(track => ({
-      id: track.videoId,
-      title: track.name,
-      artist: track.artist?.name || 'Unknown Artist',
-      duration: track.duration || 0,
-      thumbnail: track.thumbnails?.[0]?.url || null,
+    await initYTMusic();
+    const songs = await ytmusic.searchSongs(query);
+    const mapped = songs.map(song => ({
+      id: song.videoId,
+      title: song.name,
+      artist: (song as any).artist?.name || (song as any).artists?.map((a: any) => a.name).join(', ') || 'Unknown Artist',
+      thumb: song.thumbnails[song.thumbnails.length - 1]?.url || '',
+      duration: song.duration,
       source: 'youtube'
     }));
-    res.json(results);
-  } catch (error: any) {
-    console.error('YTMusic search error:', error);
-    res.status(500).json({ error: 'YouTube search failed' });
+    res.json(mapped);
+  } catch (fallbackError) {
+    console.error('[Music] All search methods failed:', fallbackError);
+    res.status(500).json({ error: 'Music search failed' });
   }
 });
 
-app.get('/api/music/youtube/stream/:id', async (req, res) => {
+// Music Stream 
+app.use('/api/music/stream', async (req, res) => {
+  let id = req.query.id as string;
+  if (!id) return res.status(400).json({ error: 'Missing track or video ID' });
+
   try {
-    const id = req.params.id;
-    console.log(`[Server] YTMusic stream requested: ${id}`);
-    const stream = await ytStream.stream(id, {
-      quality: 'high',
-      type: 'audio',
-      highWaterMark: 1024 * 1024 * 4,
-      download: true
-    } as any);
-    
-    res.set('Content-Type', 'audio/mpeg');
-    stream.stream.pipe(res);
-  } catch (error: any) {
-    console.error('YTMusic stream error:', error);
-    res.status(500).json({ error: 'YouTube stream failed' });
-  }
-});
+    let videoId = id;
 
-// 2. Monochrome.tf Routes
-app.get('/api/music/monochrome/search', async (req, res) => {
-  try {
-    const query = req.query.s as string;
-    console.log(`[Server] Monochrome search: ${query}`);
-    if (!query) return res.status(400).json({ error: 'Query required' });
-    
-    const monochromeMirrors = [
-      `https://api.monochrome.tf/search/?s=${encodeURIComponent(query)}`,
-      `https://api.monochrome.tf/search?s=${encodeURIComponent(query)}`,
-      `https://api.monochrome.tf/v1/search?query=${encodeURIComponent(query)}`,
-      `https://monochrome.tf/api/search?s=${encodeURIComponent(query)}`,
-      `https://monochrome.tf/search/?s=${encodeURIComponent(query)}`
-    ];
+    // Handle Tidal IDs from monochrome by bridging to YouTube
+    if (/^\d+$/.test(id)) {
+      console.log(`[Music] Resolving Tidal ID via Monochrome mirrors: ${id}`);
+      const infoInstances = [
+        'https://monochrome-api.samidy.com',
+        'https://api.monochrome.tf',
+        'https://hifi.geeked.wtf'
+      ];
 
-    let lastError = null;
-
-    for (const url of monochromeMirrors) {
-      try {
-        const response = await axios.get(url, { 
-          headers: MONOCHROME_HEADERS,
-          timeout: 5000,
-          validateStatus: (status) => status === 200
-        });
-
-        const contentType = response.headers['content-type'] || '';
-        if (contentType.includes('application/json')) {
-          console.log(`[Server] Monochrome search success via ${url}`);
-          return res.json(response.data);
-        }
-      } catch (e: any) {
-        lastError = e;
-      }
-    }
-
-    res.status(503).json({ 
-      error: 'Monochrome music search API failed', 
-      details: lastError?.message || 'Service Unavailable' 
-    });
-  } catch (error) {
-    console.error('Music search proxy error:', error);
-    res.status(500).json({ error: 'Failed to fetch music' });
-  }
-});
-
-app.get('/api/music/monochrome/track/:id', async (req, res) => {
-  try {
-    const id = req.params.id;
-    const quality = req.query.quality || 'HIGH';
-    
-    const monochromeTrackMirrors = [
-      `https://ohio.monochrome.tf/track/?id=${id}&quality=${quality}`,
-      `https://virginia.monochrome.tf/track/?id=${id}&quality=${quality}`,
-      `https://frankfurt.monochrome.tf/track/?id=${id}&quality=${quality}`,
-      `https://api.monochrome.tf/track/?id=${id}&quality=${quality}`,
-      `https://monochrome.tf/track/?id=${id}&quality=${quality}`,
-      `https://monochrome.tf/api/track?id=${id}&quality=${quality}`
-    ];
-
-    for (const url of monochromeTrackMirrors) {
-      try {
-        const response = await axios.get(url, { 
-          headers: MONOCHROME_HEADERS,
-          timeout: 5000,
-          validateStatus: (status) => status === 200
-        });
-        
-        const contentType = response.headers['content-type'] || '';
-        if (contentType.includes('application/json')) {
-          return res.json(response.data);
-        }
-      } catch (e: any) {
-        // ignore
-      }
-    }
-
-    res.status(503).json({ error: 'Failed to fetch track details from Monochrome' });
-  } catch (error) {
-    console.error('Track proxy error:', error);
-    res.status(500).json({ error: 'Failed to fetch track details' });
-  }
-});
-
-app.get('/api/music/monochrome/stream/:id', async (req, res) => {
-  try {
-    const id = req.params.id;
-    const quality = req.query.quality || 'HIGH';
-    
-    const monochromeTrackMirrors = [
-      `https://ohio.monochrome.tf/track/?id=${id}&quality=${quality}`,
-      `https://virginia.monochrome.tf/track/?id=${id}&quality=${quality}`,
-      `https://frankfurt.monochrome.tf/track/?id=${id}&quality=${quality}`,
-      `https://api.monochrome.tf/track/?id=${id}&quality=${quality}`,
-      `https://monochrome.tf/track/?id=${id}&quality=${quality}`
-    ];
-
-    for (const url of monochromeTrackMirrors) {
-      try {
-        const response = await axios.get(url, { 
-          headers: MONOCHROME_HEADERS,
-          timeout: 5000,
-          validateStatus: (status) => status === 200
-        });
-        
-        const contentType = response.headers['content-type'] || '';
-        if (contentType.includes('application/json')) {
-          const data = response.data;
+      for (const base of infoInstances) {
+        try {
+          const infoRes = await axios.get(`${base}/info/?id=${id}`, {
+            timeout: 5000,
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            httpsAgent: httpsAgent
+          });
           
-          if (data?.url) {
-            return res.redirect(data.url);
-          }
-          
-          const manifestData = data?.data || data;
-          if (manifestData?.manifest) {
-            try {
-              const decodedManifest = Buffer.from(manifestData.manifest, 'base64').toString('utf-8');
-              
-              if (manifestData.manifestMimeType === 'application/vnd.tidal.bts') {
-                const parsedManifest = JSON.parse(decodedManifest);
-                if (parsedManifest.urls && parsedManifest.urls.length > 0) {
-                  return res.redirect(parsedManifest.urls[0]);
-                }
-              }
-            } catch (err) {
-              console.error('Failed to parse manifest:', err);
+          const trackInfo = infoRes.data?.data;
+          if (trackInfo) {
+            console.log(`[Music] Bridging via ${base}: ${trackInfo.title} - ${trackInfo.artist.name}`);
+            await initYTMusic();
+            const ytResults = await ytmusic.searchSongs(`${trackInfo.title} ${trackInfo.artist.name}`);
+            if (ytResults && ytResults.length > 0) {
+              videoId = ytResults[0].videoId;
+              console.log(`[Music] Resolved to YouTube video ID: ${videoId}`);
+              break; // Success
             }
           }
+        } catch (bridgeError: any) {
+          console.warn(`[Music] Mirror ${base} failed to resolve ID ${id}: ${bridgeError.message}`);
         }
-      } catch (e: any) {
-        // ignore
       }
     }
 
-    res.status(503).json({ error: 'Failed to fetch stream URL from Monochrome' });
-  } catch (error) {
-    console.error('Stream proxy error:', error);
-    res.status(500).json({ error: 'Failed to fetch stream' });
-  }
-});
+    console.log(`[Music] Fetching stream via Piped APIs for: ${videoId}`);
+    // Expanded list of Piped instances for better redundancy
+    const pipedInstances = [
+      'https://pipedapi.tokhmi.xyz',
+      'https://api.piped.projectsegfau.lt',
+      'https://pipedapi.adminforge.de',
+      'https://pipedapi.smnz.de',
+      'https://pipedapi.moomoo.me',
+      'https://pipedapi.rivo.cc',
+      'https://api-piped.mha.fi',
+      'https://pipedapi.sync.pablo.casa',
+      'https://pipedapi.kavin.rocks',
+      'https://piped-api.lunar.icu',
+      'https://pipedapi.synced.org',
+      'https://pipedapi.leptons.xyz'
+    ];
 
-// 3. Infamous Music Proxy (Legacy/Image support)
-app.get('/api/music/infamous/image', async (req, res) => {
-  try {
-    const url = req.query.url as string;
-    if (!url) return res.status(400).json({ error: 'URL required' });
-    
-    const response = await axios.get(url, {
-      headers: {
-        'Referer': 'https://infamous.qzz.io/',
-        'User-Agent': MONOCHROME_HEADERS['User-Agent']
-      },
-      responseType: 'arraybuffer',
-      timeout: 10000
-    });
-    res.set('Content-Type', response.headers['content-type']);
-    res.send(Buffer.from(response.data, 'binary'));
-  } catch (error: any) {
-    console.error('Infamous image proxy error:', error.message);
-    res.status(500).json({ error: 'Failed to fetch image' });
-  }
-});
+    let streamData = null;
+    let lastError = null;
 
-app.use('/api/music/infamous', createProxyMiddleware({
-  target: 'https://infamous.qzz.io',
-  changeOrigin: true,
-  pathRewrite: {
-    '^/api/music/infamous': ''
-  },
-  on: {
-    proxyReq: (proxyReq, req, res) => {
-      proxyReq.setHeader('Referer', 'https://infamous.qzz.io/');
-      proxyReq.setHeader('User-Agent', MONOCHROME_HEADERS['User-Agent']);
-      proxyReq.setHeader('Origin', 'https://infamous.qzz.io');
+    for (const apiBase of pipedInstances) {
+      try {
+        console.log(`[Music] Trying Piped instance: ${apiBase} for ${videoId}`);
+        const response = await axios.get(`${apiBase}/streams/${videoId}`, {
+          timeout: 6000, // Slightly tighter timeout to cycle through faster
+          validateStatus: (status) => status === 200,
+          httpsAgent: httpsAgent,
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+          }
+        });
+        
+        const jsonData = response.data;
+        // Verify we actually got the expected JSON data
+        if (jsonData && jsonData.audioStreams && Array.isArray(jsonData.audioStreams) && jsonData.audioStreams.length > 0) {
+           streamData = jsonData;
+           console.log(`[Music] Found stream via ${apiBase}`);
+           break; 
+        } else {
+           console.warn(`[Music] Instance ${apiBase} returned invalid data format or no audio streams`);
+           lastError = new Error('Invalid response or no audio streams');
+        }
+      } catch (err: any) {
+        const status = err.response?.status;
+        const msg = err.code === 'ECONNABORTED' ? 'Timeout' : (err.message || 'Unknown Error');
+        console.log(`[Music] Instance ${apiBase} failed: ${status ? status : msg}`);
+        lastError = err;
+      }
     }
-  }
-}));
 
-// --- MUSIC SERVICES END ---
+    if (!streamData) {
+      console.error(`[Music] All stream proxies failed for ${videoId}. Last error:`, lastError?.message || lastError);
+      return res.status(500).json({ 
+        error: 'All streaming instances failed', 
+        videoId,
+        detail: lastError?.message || String(lastError)
+      });
+    }
+    
+    // Select highest bitrate audio stream
+    const bestAudio = streamData.audioStreams.sort((a: any, b: any) => b.bitrate - a.bitrate)[0];
+    if (bestAudio && bestAudio.url) {
+      console.log(`[Music] Redirecting to direct audio source for: ${videoId}`);
+      res.redirect(bestAudio.url);
+    } else {
+      res.status(500).json({ error: 'No valid audio streams found' });
+    }
+
+  } catch (error: any) {
+    console.error('[Music] Stream extraction total failure:', error.message);
+    res.status(500).json({ error: 'Internal streaming error' });
+  }
+});
 
 // GA4 Proxy Route
 app.get('/api/analytics/data', async (req, res) => {
@@ -333,9 +298,15 @@ app.get('/api/analytics/data', async (req, res) => {
   }
 });
 
-// API 404 handler
-app.use('/api', (req, res) => {
-  res.status(404).json({ error: 'API route not found', path: req.url });
+// Final catch-all for unmatched API routes
+app.all('/api/*all', (req, res) => {
+  console.warn(`[Server] 404 NOT FOUND - API route match failed: ${req.method} ${req.url}`);
+  res.status(404).json({ 
+    error: 'API route not found', 
+    method: req.method,
+    path: req.url,
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Session configuration
@@ -367,9 +338,9 @@ async function startServer() {
     app.use(express.static(distPath));
     
     // SPA fallback - only for non-API routes
-    app.get('*', (req, res, next) => {
-      if (req.url.startsWith('/api')) {
-        console.log(`[Server] API route fell through to SPA fallback: ${req.url}`);
+    app.get('*all', (req, res, next) => {
+      if (req.path.startsWith('/api')) {
+        console.log(`[Server] API route fell through to SPA fallback: ${req.path}`);
         return next();
       }
       res.sendFile(path.join(distPath, 'index.html'));
