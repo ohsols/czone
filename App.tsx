@@ -225,14 +225,19 @@ const App: React.FC = () => {
   }, [user, isAuthReady]);
 
   useEffect(() => {
-    fetch('/api/uploads')
-      .then(res => res.json())
-      .then(data => {
+    const fetchUploads = async () => {
+      try {
+        const q = query(collection(db, 'uploads'), orderBy('createdAt', 'desc'), limit(1000));
+        const snapshot = await getDocs(q);
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         setUploads(data);
-      })
-      .catch(err => {
-        console.error("Failed to fetch uploads", err);
-      });
+      } catch (err) {
+        if (!String(err).includes('Quota limit exceeded') && !String(err).includes('Quota exceeded')) {
+          console.error("Failed to fetch uploads", err);
+        }
+      }
+    };
+    fetchUploads();
   }, []);
 
   useEffect(() => {
@@ -521,10 +526,10 @@ const App: React.FC = () => {
     
     const uploadFilter = (u: any) => u.title.toLowerCase().includes(q);
     const mappedUploads = uploads.filter(uploadFilter).map(u => {
-      const isImagePath = u.path && u.path.match(/\.(jpeg|jpg|gif|png|webp|svg)$/i);
-      const isImagePathUrl = u.path && (u.path.startsWith('http') && u.path.match(/\.(jpeg|jpg|gif|png|webp|svg)/i));
-      const imgSrc = u.imageLink || (isImagePath || isImagePathUrl ? u.path : '/assets/appicon.png');
-      return { t: u.title, l: u.path || u.driveLink, img: imgSrc, type: u.type };
+      const imgSrc = u.imageLink || 'https://picsum.photos/seed/placeholder/200/300';
+      // legacy instances might still have `u.path` instead of `u.driveLink`
+      const contentLink = u.driveLink || u.path || u.imageLink;
+      return { t: u.title, l: contentLink, img: imgSrc, type: u.type };
     });
 
     // Then apply text filter
@@ -1105,10 +1110,9 @@ const App: React.FC = () => {
                       <>
                         {uploads.filter(u => u.type === 'movie').length > 0 && (
                           <LibrarySection title={t('New Movies')} items={uploads.filter(u => u.type === 'movie').map(u => {
-                            const isImagePath = u.path && u.path.match(/\.(jpeg|jpg|gif|png|webp|svg)$/i);
-                            const isImagePathUrl = u.path && (u.path.startsWith('http') && u.path.match(/\.(jpeg|jpg|gif|png|webp|svg)/i));
-                            const imgSrc = u.imageLink || (isImagePath || isImagePathUrl ? u.path : '/assets/appicon.png');
-                            return { t: u.title, l: u.path || u.driveLink, img: imgSrc };
+                            const imgSrc = u.imageLink || 'https://picsum.photos/seed/placeholder/200/300';
+                            const contentLink = u.driveLink || u.path || u.imageLink;
+                            return { t: u.title, l: contentLink, img: imgSrc };
                           })} category="movie" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />
                         )}
                         <LibrarySection title={t('Movies')} items={MOVIES_DATA} category="movie" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />
@@ -1118,10 +1122,9 @@ const App: React.FC = () => {
                       <>
                         {uploads.filter(u => u.type === 'tv').length > 0 && (
                           <LibrarySection title={t('New TV Shows')} items={uploads.filter(u => u.type === 'tv').map(u => {
-                            const isImagePath = u.path && u.path.match(/\.(jpeg|jpg|gif|png|webp|svg)$/i);
-                            const isImagePathUrl = u.path && (u.path.startsWith('http') && u.path.match(/\.(jpeg|jpg|gif|png|webp|svg)/i));
-                            const imgSrc = u.imageLink || (isImagePath || isImagePathUrl ? u.path : '/assets/appicon.png');
-                            return { t: u.title, l: u.path || u.driveLink, img: imgSrc };
+                            const imgSrc = u.imageLink || 'https://picsum.photos/seed/placeholder/200/300';
+                            const contentLink = u.driveLink || u.path || u.imageLink;
+                            return { t: u.title, l: contentLink, img: imgSrc };
                           })} category="tv" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />
                         )}
                         <LibrarySection title={t('TV Shows')} items={TV_DATA} category="tv" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />
@@ -1131,10 +1134,9 @@ const App: React.FC = () => {
                       <>
                         {uploads.filter(u => u.type === 'anime').length > 0 && (
                           <LibrarySection title={t('New Anime')} items={uploads.filter(u => u.type === 'anime').map(u => {
-                            const isImagePath = u.path && u.path.match(/\.(jpeg|jpg|gif|png|webp|svg)$/i);
-                            const isImagePathUrl = u.path && (u.path.startsWith('http') && u.path.match(/\.(jpeg|jpg|gif|png|webp|svg)/i));
-                            const imgSrc = u.imageLink || (isImagePath || isImagePathUrl ? u.path : '/assets/appicon.png');
-                            return { t: u.title, l: u.path || u.driveLink, img: imgSrc };
+                            const imgSrc = u.imageLink || 'https://picsum.photos/seed/placeholder/200/300';
+                            const contentLink = u.driveLink || u.path || u.imageLink;
+                            return { t: u.title, l: contentLink, img: imgSrc };
                           })} category="anime" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />
                         )}
                         <LibrarySection title={t('Animes')} items={ANIME_DATA} category="anime" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />
@@ -1144,10 +1146,9 @@ const App: React.FC = () => {
                       <>
                         {uploads.filter(u => u.type === 'manga').length > 0 && (
                           <LibrarySection title={t('New Manga')} items={uploads.filter(u => u.type === 'manga').map(u => {
-                            const isImagePath = u.path && u.path.match(/\.(jpeg|jpg|gif|png|webp|svg)$/i);
-                            const isImagePathUrl = u.path && (u.path.startsWith('http') && u.path.match(/\.(jpeg|jpg|gif|png|webp|svg)/i));
-                            const imgSrc = u.imageLink || (isImagePath || isImagePathUrl ? u.path : '/assets/appicon.png');
-                            return { t: u.title, l: u.path || u.driveLink, img: imgSrc };
+                            const imgSrc = u.imageLink || 'https://picsum.photos/seed/placeholder/200/300';
+                            const contentLink = u.driveLink || u.path || u.imageLink;
+                            return { t: u.title, l: contentLink, img: imgSrc };
                           })} category="manga" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />
                         )}
                         <LibrarySection title={t('Mangas')} items={MANGA_DATA} category="manga" searchQuery="" onOpenDetails={handleOpenDetails} showSearch={true} />
@@ -1283,7 +1284,16 @@ const App: React.FC = () => {
                 </div>
               )}
               <div className={`flex-1 ${selectedItem.showPlayer ? 'p-0' : 'p-10 md:p-16'} flex flex-col overflow-y-auto custom-scrollbar`}>
-                {selectedItem.showPlayer ? (
+                {selectedItem.showPlayer ? (() => {
+                  let iframeUrl = selectedItem.item.l || '';
+                  if (iframeUrl.includes('drive.google.com')) {
+                    if (iframeUrl.includes('/view')) {
+                      iframeUrl = iframeUrl.replace(/\/view.*$/, '/preview');
+                    } else if (!iframeUrl.includes('/preview')) {
+                      iframeUrl += (iframeUrl.endsWith('/') ? '' : '/') + 'preview';
+                    }
+                  }
+                  return (
                   <div className="w-full h-full bg-black flex flex-col rounded-2xl overflow-hidden relative">
                     <button 
                       onClick={() => setSelectedItem({...selectedItem, showPlayer: false})}
@@ -1291,13 +1301,22 @@ const App: React.FC = () => {
                     >
                       <X size={24} />
                     </button>
+                    <a 
+                      href={selectedItem.item.l}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute top-4 right-4 z-50 bg-bg/80 hover:bg-accent p-4 rounded-2xl transition-all duration-300 border border-white/5 text-white flex items-center gap-2"
+                    >
+                      <ExternalLink size={20} /> <span className="text-xs font-bold uppercase tracking-wider hidden md:block">Open Externally</span>
+                    </a>
                     <iframe 
-                      src={selectedItem.item.l || ''}
-                      className="w-full h-full grayscale"
+                      src={iframeUrl}
+                      className="w-full h-full"
                       allowFullScreen
                     />
                   </div>
-                ) : (
+                  );
+                })() : (
                   <>
                     <div className="mb-auto">
                   <div className="flex items-center gap-4 mb-6"></div>                  <h2 className="text-5xl md:text-7xl font-black italic uppercase tracking-tighter text-white leading-[0.85] mb-10"><TranslatedText text={selectedItem.item.t} /></h2>

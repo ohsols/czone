@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Trash2, Edit2, Save, AlertCircle, CheckCircle2, ShieldCheck, Users, Megaphone, Activity, Send, Check, Ban, UserCheck, Upload, Loader2, Database, Settings as SettingsIcon } from 'lucide-react';
+import { X, Plus, Trash2, Edit2, Save, AlertCircle, CheckCircle2, ShieldCheck, Users, Megaphone, Activity, Send, Check, Ban, UserCheck, Upload, Loader2, Database, Globe, Settings as SettingsIcon } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { db, auth, OperationType, handleFirestoreError, isQuotaExceeded } from '../firebase';
 import { collection, addDoc, query, orderBy, deleteDoc, doc, updateDoc, serverTimestamp, Timestamp, setDoc, where, getDocs, getDoc, limit, onSnapshot } from 'firebase/firestore';
@@ -65,29 +65,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
   const [uploadSuccess, setUploadSuccess] = useState('');
 
   const handleUpload = async () => {
-    if (!uploadTitle || !fileInputRef.current?.files?.[0]) {
-      setError('Please provide a title and a file.');
+    if (!uploadTitle || !driveLink || !imageLink) {
+      setError('Please provide a title, a content link, and a thumbnail image link.');
       return;
     }
     setIsSubmitting(true);
     try {
-      const formData = new FormData();
-      formData.append('file', fileInputRef.current.files[0]);
-      formData.append('title', uploadTitle);
-      formData.append('type', uploadType);
-      
-      const response = await fetch('/api/uploads', {
-        method: 'POST',
-        body: formData,
+      await addDoc(collection(db, 'uploads'), {
+        title: uploadTitle,
+        type: uploadType,
+        imageLink: imageLink,
+        driveLink: driveLink,
+        uploadedBy: auth.currentUser?.email || 'Unknown Admin',
+        createdAt: serverTimestamp()
       });
-      if (!response.ok) throw new Error('Upload failed');
       
-      setUploadSuccess('Content uploaded successfully!');
+      setUploadSuccess('Content added successfully!');
       setUploadTitle('');
+      setImageLink('');
+      setDriveLink('');
       if (fileInputRef.current) fileInputRef.current.value = '';
       setTimeout(() => setUploadSuccess(''), 3000);
     } catch (err) {
-      setError('Failed to upload content.');
+      setError('Failed to log content.');
+      handleFirestoreError(err, OperationType.CREATE, 'uploads');
     } finally {
       setIsSubmitting(false);
     }
@@ -227,16 +228,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
 
     try {
       if (activeTab === 'manage_uploads') {
-        fetch('/api/uploads')
-          .then(res => res.json())
-          .then(data => {
-            setUploads(data);
+        const fetchUploads = async () => {
+          try {
+            const q = query(collection(db, 'uploads'), orderBy('createdAt', 'desc'), limit(1000));
+            const snapshot = await getDocs(q);
+            setUploads(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[]);
             setIsLoading(false);
-          })
-          .catch(err => {
-            setError('Failed to fetch uploads.');
+          } catch(err) {
+            handleFirestoreError(err, OperationType.LIST, 'uploads');
             setIsLoading(false);
-          });
+          }
+        };
+        fetchUploads();
       } else if (activeTab === 'announcements') {
         const fetchAnnouncements = async () => {
           try {
@@ -326,7 +329,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
 
   const handleAddAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTitle.trim() || !newContent.trim()) return;
+    if (!newTitle.trim() || !newContent.trim()) {
+      setError('Please provide both an announcement title and content.');
+      return;
+    }
 
     if (isQuotaExceeded) {
       setError('Database quota exceeded. Cannot post announcement.');
@@ -367,15 +373,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
   };
 
   const handleDeleteUpload = async (id: string) => {
-    if (!window.confirm('Are you sure you want to delete this upload?')) return;
+    if (!window.confirm('Are you sure you want to delete this content?')) return;
     try {
-      const response = await fetch(`/api/uploads/${id}`, { method: 'DELETE' });
-      if (!response.ok) throw new Error('Failed to delete');
+      await deleteDoc(doc(db, 'uploads', id));
       setUploads(uploads.filter(u => u.id !== id));
-      setSuccess('Upload deleted successfully!');
+      setSuccess('Content deleted successfully!');
       setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
-      setError('Failed to delete upload.');
+      setError('Failed to delete content.');
+      handleFirestoreError(err, OperationType.DELETE, `uploads/${id}`);
     }
   };
 
@@ -387,44 +393,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
       });
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `site_announcements/${id}`);
-    }
-  };
-
-  const handleMigrateUploads = async () => {
-    if (!window.confirm('This will pull your legacy Firebase uploads into the new local system. Proceed?')) return;
-    setIsSubmitting(true);
-    try {
-      const dbq = query(collection(db, 'uploads'), limit(1000));
-      const snap = await getDocs(dbq);
-      const legacyUploads = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      
-      if (legacyUploads.length === 0) {
-        setSuccess('No legacy uploads found in Firebase.');
-        setTimeout(() => setSuccess(null), 3000);
-        setIsSubmitting(false);
-        return;
-      }
-
-      const res = await fetch('/api/uploads/migrate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ legacyUploads })
-      });
-      
-      if (!res.ok) throw new Error('Migration failed');
-      const jsonRes = await res.json();
-      
-      const listRes = await fetch('/api/uploads');
-      const newData = await listRes.json();
-      setUploads(newData);
-      
-      setSuccess(`Successfully migrated ${jsonRes.count} uploads!`);
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      console.error(err);
-      setError('Failed to migrate uploads.');
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -569,7 +537,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
 
   const handleAddAdmin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newAdminEmail.trim()) return;
+    if (!newAdminEmail.trim()) {
+      setError('Please provide an email address.');
+      return;
+    }
 
     setIsSubmitting(true);
     setError(null);
@@ -707,7 +678,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
 
         {!isLoading && activeTab === 'upload' && (
           <div className="p-6 space-y-6">
-            <h3 className="text-xl font-black uppercase italic tracking-tighter">Upload New Content</h3>
+            <h3 className="text-xl font-black uppercase italic tracking-tighter">Add New Content</h3>
             {uploadSuccess && <p className="text-green-500">{uploadSuccess}</p>}
             <select value={uploadType} onChange={(e) => setUploadType(e.target.value)} className="w-full bg-surface border border-white/10 rounded-xl p-3 text-white">
               <option value="movie">Movie</option>
@@ -716,52 +687,102 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
               <option value="tv">TV Show</option>
             </select>
             <input type="text" placeholder="Title" value={uploadTitle} onChange={(e) => setUploadTitle(e.target.value)} className="w-full bg-surface border border-white/10 rounded-xl p-3 text-white" />
-            <input type="file" ref={fileInputRef} className="w-full bg-surface border border-white/10 rounded-xl p-3 text-white" />
-            <input type="text" placeholder="Image Link" value={imageLink} onChange={(e) => setImageLink(e.target.value)} className="w-full bg-surface border border-white/10 rounded-xl p-3 text-white" />
+            <input type="text" placeholder="Content Link (Google Drive, MP4, etc)" value={driveLink} onChange={(e) => setDriveLink(e.target.value)} className="w-full bg-surface border border-white/10 rounded-xl p-3 text-white" />
+            <input type="text" placeholder="Thumbnail Image Link" value={imageLink} onChange={(e) => setImageLink(e.target.value)} className="w-full bg-surface border border-white/10 rounded-xl p-3 text-white" />
             <button onClick={handleUpload} disabled={isSubmitting} className="w-full bg-accent text-black font-black uppercase py-3 rounded-xl hover:bg-accent/90 transition-all">
-                {isSubmitting ? 'Uploading...' : 'Upload'}
+                {isSubmitting ? 'Submitting...' : 'Add Content'}
             </button>
           </div>
         )}
         {!isLoading && activeTab === 'manage_uploads' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <h3 className="text-xl font-black uppercase italic tracking-tighter">Manage Uploads</h3>
-              <button 
-                onClick={handleMigrateUploads} 
-                disabled={isSubmitting}
-                className="bg-white/5 text-xs px-3 py-2 flex items-center gap-2 border border-white/20 rounded-lg hover:bg-white/10 transition-all font-bold"
-              >
-                <Database size={14} className="text-accent" /> Migrate Legacy Firebase Uploads
-              </button>
+          <div className="space-y-6">
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div>
+                <h3 className="text-2xl font-black uppercase italic tracking-tighter">Manage Added Content</h3>
+                <p className="text-neutral-500 text-xs font-bold uppercase tracking-widest mt-1">Total Items: {uploads.length}</p>
+              </div>
             </div>
+            
             {uploads.length === 0 ? (
-              <div className="text-center py-12 text-neutral-600 italic text-sm">No uploads found.</div>
+              <div className="bg-white/5 border border-white/5 border-dashed rounded-[32px] py-20 flex flex-col items-center justify-center text-center">
+                <div className="w-16 h-16 rounded-full bg-white/5 flex items-center justify-center mb-4 text-neutral-600">
+                  <Database size={32} />
+                </div>
+                <p className="text-neutral-500 font-bold">No content has been added yet.</p>
+                <button onClick={() => setActiveTab('upload')} className="text-accent text-xs font-black uppercase tracking-widest mt-4 hover:underline">Add something now</button>
+              </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                 {uploads.map((upload) => {
-                  const isImagePath = upload.path && upload.path.match(/\.(jpeg|jpg|gif|png|webp|svg)$/i);
-                  const isImagePathUrl = upload.path && (upload.path.startsWith('http') && upload.path.match(/\.(jpeg|jpg|gif|png|webp|svg)/i));
-                  const imgSrc = upload.imageLink || (isImagePath || isImagePathUrl ? upload.path : '/assets/appicon.png');
                   return (
-                  <div key={upload.id} className="relative bg-white/5 border border-white/5 rounded-2xl p-4 flex items-center gap-4 group hover:border-white/10 transition-all overflow-hidden">
-                    {upload.isLegacy && <div className="absolute top-0 right-0 bg-yellow-500/20 text-yellow-500 text-[8px] font-bold px-2 py-0.5 rounded-bl-lg uppercase z-10">Legacy</div>}
-                    <div className="w-16 h-24 bg-neutral-800 rounded-lg overflow-hidden shrink-0 flex items-center justify-center relative">
-                      <img src={imgSrc} alt={upload.title} className="absolute inset-0 w-full h-full object-cover" referrerPolicy="no-referrer" 
-                           onError={(e) => { (e.target as HTMLImageElement).src = '/assets/appicon.png'; }} />
-                    </div>
-                    <div className="flex-1 min-width-0">
-                      <h4 className="font-bold text-white truncate">{upload.title}</h4>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-accent mb-1">{upload.type}</p>
-                      <p className="text-[9px] text-neutral-500 truncate" title={upload.path}>{upload.path}</p>
-                    </div>
-                    <button 
-                      onClick={() => handleDeleteUpload(upload.id)}
-                      className="p-2 rounded-lg bg-red-500/10 text-red-500 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500/20 z-10"
+                    <motion.div 
+                      layout
+                      key={upload.id} 
+                      className="group relative bg-[#0c0c0c] border border-white/5 rounded-[2rem] p-4 flex items-start gap-5 hover:border-white/10 transition-all duration-500 hover:shadow-2xl hover:shadow-accent/5 overflow-hidden"
                     >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
+                      {/* Thumbnail */}
+                      <div className="w-20 h-28 bg-neutral-900 rounded-2xl overflow-hidden shrink-0 relative shadow-lg shadow-black/40">
+                        <img 
+                          src={upload.imageLink} 
+                          alt={upload.title} 
+                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" 
+                          referrerPolicy="no-referrer" 
+                          onError={(e) => { (e.target as HTMLImageElement).src = 'https://picsum.photos/seed/placeholder/200/300'; }} 
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0 py-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <span className="text-[10px] font-black uppercase tracking-[0.2em] px-2 py-0.5 rounded-full bg-accent/10 text-accent border border-accent/20">
+                            {upload.type}
+                          </span>
+                          <span className="text-[10px] font-bold text-neutral-600 uppercase tracking-widest">
+                            ID: {upload.id.substring(0, 8)}...
+                          </span>
+                        </div>
+                        
+                        <h4 className="text-lg font-black uppercase italic tracking-tighter text-white truncate group-hover:text-accent transition-colors">
+                          {upload.title}
+                        </h4>
+
+                        <div className="mt-3 space-y-2">
+                          {/* Links - Truncated and styled */}
+                          <div className="flex items-center gap-2 text-[11px]">
+                            <div className="bg-white/5 rounded-lg px-2 py-1 flex items-center gap-2 max-w-[200px] truncate border border-white/5">
+                              <Globe size={10} className="text-neutral-500" />
+                              <span className="text-neutral-400 truncate font-mono">{upload.driveLink || upload.imageLink}</span>
+                            </div>
+                            <button 
+                              onClick={() => {
+                                navigator.clipboard.writeText(upload.driveLink || upload.imageLink);
+                                alert('Link copied to clipboard!');
+                              }}
+                              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-500 hover:text-white transition-all"
+                              title="Copy Link"
+                            >
+                              <Database size={12} />
+                            </button>
+                          </div>
+
+                          {/* Uploader Info */}
+                          <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-neutral-600">
+                            <Users size={12} className="text-neutral-700" />
+                            <span>Added By: <span className="text-neutral-400">{upload.uploadedBy || 'System'}</span></span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Delete Action */}
+                      <button 
+                        onClick={() => handleDeleteUpload(upload.id)}
+                        className="self-center p-3 rounded-2xl bg-red-500/5 text-red-500/40 hover:text-red-500 hover:bg-red-500/10 transition-all duration-300 border border-transparent hover:border-red-500/20"
+                        title="Delete Content"
+                      >
+                        <Trash2 size={20} />
+                      </button>
+                    </motion.div>
                   );
                 })}
               </div>
