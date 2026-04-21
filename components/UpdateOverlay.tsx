@@ -9,24 +9,20 @@ export const UpdateOverlay = () => {
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    let timer: NodeJS.Timeout;
-    
-    const checkStatus = async () => {
+    const fetchStatus = async () => {
       try {
-        const docSnap = await getDoc(doc(db, 'system', 'status'));
-        if (docSnap.exists()) {
-          const updating = docSnap.data().updating === true;
-          setIsUpdating(updating);
+        const res = await fetch('/api/db/system-status');
+        if (res.ok) {
+          const data = await res.json();
+          setIsUpdating(data.updating === true);
         }
       } catch (err) {
-        handleFirestoreError(err, OperationType.GET, 'system/status');
+        console.error("Failed to fetch system status:", err);
       }
     };
 
-    checkStatus();
-    // Poll every 30 seconds instead of subscribing
-    timer = setInterval(checkStatus, 30000);
-
+    fetchStatus();
+    const timer = setInterval(fetchStatus, 30000); // 30s polling
     return () => clearInterval(timer);
   }, []);
 
@@ -45,13 +41,20 @@ export const UpdateOverlay = () => {
 
   const handleGlobalTurnOff = async () => {
     try {
-      await updateDoc(doc(db, 'system', 'status'), {
-        updating: false,
-        updatedAt: serverTimestamp(),
-        updatedBy: auth.currentUser?.uid
+      const response = await fetch('/api/db/system-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          updating: false,
+          updatedAt: new Date().toISOString(),
+          updatedBy: auth.currentUser?.uid
+        })
       });
+      if (response.ok) {
+        setIsUpdating(false);
+      }
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, 'system/status');
+      console.error("Failed to turn off maintenance mode:", err);
     }
   };
 

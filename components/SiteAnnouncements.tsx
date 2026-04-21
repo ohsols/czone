@@ -15,25 +15,20 @@ export const SiteAnnouncements = () => {
   }, []);
 
   useEffect(() => {
-    if (isQuotaExceeded) return;
-
     const fetchAnnouncements = async () => {
       try {
-        const q = query(
-          collection(db, 'site_announcements'), 
-          where('active', '==', true)
-        );
-        const snapshot = await getDocs(q);
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setAnnouncements(data);
+        const res = await fetch('/api/db/announcements');
+        if (res.ok) {
+          const data = await res.json();
+          setAnnouncements(data.filter((a: any) => a.active !== false));
+        }
       } catch (err) {
-        handleFirestoreError(err, OperationType.LIST, 'site_announcements');
+        console.error("Failed to fetch announcements:", err);
       }
     };
 
     fetchAnnouncements();
-    // Poll every 30 seconds
-    const timer = setInterval(fetchAnnouncements, 30000);
+    const timer = setInterval(fetchAnnouncements, 30000); // 30s polling
     return () => clearInterval(timer);
   }, []);
 

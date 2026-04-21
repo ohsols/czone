@@ -98,6 +98,12 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString(), env: process.env.NODE_ENV });
 });
 
+// Discord verification
+app.get('/.well-known/discord', (req, res) => {
+  res.setHeader('Content-Type', 'text/plain');
+  res.send('dh=f74ec827e58e3b50e2e2e7e251b0098aadfb36ac');
+});
+
 // Local DB API Routes
 app.get('/api/db/uploads', (req, res) => {
   const data = readDb('uploads');
@@ -166,6 +172,48 @@ app.post('/api/db/announcements', (req, res) => {
   items.unshift(newItem);
   writeDb('announcements', items);
   res.json(newItem);
+});
+
+app.delete('/api/db/announcements/:id', (req, res) => {
+  const { id } = req.params;
+  const items = readDb('announcements');
+  const filtered = items.filter((i: any) => i.id !== id);
+  writeDb('announcements', filtered);
+  res.json({ success: true });
+});
+
+app.patch('/api/db/announcements/:id', (req, res) => {
+  const { id } = req.params;
+  const items = readDb('announcements');
+  const index = items.findIndex((i: any) => i.id === id);
+  if (index !== -1) {
+    items[index] = { ...items[index], ...req.body };
+    writeDb('announcements', items);
+    res.json(items[index]);
+  } else {
+    res.status(404).json({ error: 'Announcement not found' });
+  }
+});
+
+app.delete('/api/db/suggestions/:id', (req, res) => {
+  const { id } = req.params;
+  const items = readDb('suggestions');
+  const filtered = items.filter((i: any) => i.id !== id);
+  writeDb('suggestions', filtered);
+  res.json({ success: true });
+});
+
+app.patch('/api/db/suggestions/:id', (req, res) => {
+  const { id } = req.params;
+  const items = readDb('suggestions');
+  const index = items.findIndex((i: any) => i.id === id);
+  if (index !== -1) {
+    items[index] = { ...items[index], ...req.body };
+    writeDb('suggestions', items);
+    res.json(items[index]);
+  } else {
+    res.status(404).json({ error: 'Suggestion not found' });
+  }
 });
 
 import https from 'https';

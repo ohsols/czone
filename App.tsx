@@ -226,13 +226,16 @@ const App: React.FC = () => {
         const response = await fetch('/api/db/uploads');
         if (response.ok) {
           const data = await response.json();
-          setUploads(data);
+          // Sort locally if not sorted by server
+          setUploads(data.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
         }
       } catch (err) {
         console.error("Failed to fetch uploads from local DB", err);
       }
     };
     fetchUploads();
+    const uploadTimer = setInterval(fetchUploads, 60000); // Poll uploads every minute
+    return () => clearInterval(uploadTimer);
   }, []);
 
   useEffect(() => {
@@ -294,69 +297,62 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!user || !isAuthReady || isQuotaExceeded) return;
 
-    let timer: NodeJS.Timeout;
-    const fetchUserDoc = async () => {
-      try {
-        const userDocRef = doc(db, 'users', user.uid);
-        const docSnap = await getDoc(userDocRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          if (data.customLogo) {
-            setCustomLogo(data.customLogo);
-            localStorage.setItem('chillzone_custom_logo', data.customLogo);
-          }
-          if (data.favorites) {
-            setFavorites(data.favorites);
-            localStorage.setItem('chillzone_favorites', JSON.stringify(data.favorites));
-          }
-          if (data.theme) {
-            localStorage.setItem('custom_theme_id', data.theme);
-            if (data.customThemes) {
-              localStorage.setItem('custom_themes', data.customThemes);
-            }
-            // Apply theme
-            const savedThemes = localStorage.getItem('custom_themes');
-            const customThemes = savedThemes ? JSON.parse(savedThemes) : { ...defaultThemes };
-            const activeTheme = customThemes[data.theme] || defaultThemes.chillzone;
-            
-            const root = document.documentElement;
-            root.style.setProperty('--bg', activeTheme.colors.bg);
-            root.style.setProperty('--text-primary', activeTheme.colors.textPrimary);
-            root.style.setProperty('--surface', activeTheme.colors.surface);
-            root.style.setProperty('--border', activeTheme.colors.border);
-            root.style.setProperty('--accent', activeTheme.colors.accent);
-            root.style.setProperty('--surface-hover', activeTheme.colors.surfaceHover);
-            
-            const hexToRgb = (hex: string) => {
-              const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-              return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : '255, 0, 0';
-            };
-            
-            const rgb = hexToRgb(activeTheme.colors.accent);
-            root.style.setProperty('--accent-glow', `rgba(${rgb}, 0.3)`);
-            root.style.setProperty('--accent-glow-dim', `rgba(${rgb}, 0.1)`);
-            root.dataset.theme = data.theme;
-          }
-          
-          // Update admin status based on role in database and super admin UID
-          const superAdminUid = 'HfjrcUIslZPCvNI3fxiQJVK1ebB3';
-          const defaultAdminEmail = 'darkfn1234567890@gmail.com';
-          const isSuperAdminUser = user.uid === superAdminUid;
-          const isDefaultAdmin = user.email === defaultAdminEmail && user.emailVerified;
-          const isAdminRole = ['admin', 'co-owner', 'owner'].includes(data.role || '');
-          
-          setIsSuperAdmin(isSuperAdminUser);
-          setIsAdmin(isSuperAdminUser || isDefaultAdmin || isAdminRole);
+    const userDocRef = doc(db, 'users', user.uid);
+    const unsub = onSnapshot(userDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        if (data.customLogo) {
+          setCustomLogo(data.customLogo);
+          localStorage.setItem('chillzone_custom_logo', data.customLogo);
         }
-      } catch (err) {
-        handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
+        if (data.favorites) {
+          setFavorites(data.favorites);
+          localStorage.setItem('chillzone_favorites', JSON.stringify(data.favorites));
+        }
+        if (data.theme) {
+          localStorage.setItem('custom_theme_id', data.theme);
+          if (data.customThemes) {
+            localStorage.setItem('custom_themes', data.customThemes);
+          }
+          // Apply theme
+          const savedThemes = localStorage.getItem('custom_themes');
+          const customThemes = savedThemes ? JSON.parse(savedThemes) : { ...defaultThemes };
+          const activeTheme = customThemes[data.theme] || defaultThemes.chillzone;
+          
+          const root = document.documentElement;
+          root.style.setProperty('--bg', activeTheme.colors.bg);
+          root.style.setProperty('--text-primary', activeTheme.colors.textPrimary);
+          root.style.setProperty('--surface', activeTheme.colors.surface);
+          root.style.setProperty('--border', activeTheme.colors.border);
+          root.style.setProperty('--accent', activeTheme.colors.accent);
+          root.style.setProperty('--surface-hover', activeTheme.colors.surfaceHover);
+          
+          const hexToRgb = (hex: string) => {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : '255, 0, 0';
+          };
+          
+          const rgb = hexToRgb(activeTheme.colors.accent);
+          root.style.setProperty('--accent-glow', `rgba(${rgb}, 0.3)`);
+          root.style.setProperty('--accent-glow-dim', `rgba(${rgb}, 0.1)`);
+          root.dataset.theme = data.theme;
+        }
+        
+        // Update admin status based on role in database and super admin UID
+        const superAdminUid = 'HfjrcUIslZPCvNI3fxiQJVK1ebB3';
+        const defaultAdminEmail = 'darkfn1234567890@gmail.com';
+        const isSuperAdminUser = user.uid === superAdminUid;
+        const isDefaultAdmin = user.email === defaultAdminEmail && user.emailVerified;
+        const isAdminRole = ['admin', 'co-owner', 'owner'].includes(data.role || '');
+        
+        setIsSuperAdmin(isSuperAdminUser);
+        setIsAdmin(isSuperAdminUser || isDefaultAdmin || isAdminRole);
       }
-    };
+    }, (err) => {
+      handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
+    });
 
-    fetchUserDoc();
-    timer = setInterval(fetchUserDoc, 60000); // 60 seconds polling
-
-    return () => clearInterval(timer);
+    return () => unsub();
   }, [user, isAuthReady]);
 
   useEffect(() => {
@@ -443,6 +439,20 @@ const App: React.FC = () => {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  useEffect(() => {
+    const handleFirestoreError = (event: any) => {
+      const { detail } = event;
+      if (detail.error.includes('Quota limit exceeded') || detail.error.includes('Quota exceeded')) {
+        setIsQuotaExceededUI(true);
+        if (!hasShownQuotaPopup) {
+          setShowQuotaPopup(true);
+        }
+      }
+    };
+    window.addEventListener('firestore-error', handleFirestoreError);
+    return () => window.removeEventListener('firestore-error', handleFirestoreError);
+  }, [hasShownQuotaPopup]);
 
   const handleUpdateLogo = (newLogoUrl: string) => {
     setCustomLogo(newLogoUrl);

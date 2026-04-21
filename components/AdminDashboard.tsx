@@ -105,81 +105,110 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
   const [suggestionFilter, setSuggestionFilter] = useState<'all' | 'pending' | 'reviewed'>('all');
   const [adminSearchQuery, setAdminSearchQuery] = useState('');
 
+  const unsubsRef = useRef<{ [key: string]: (() => void) | undefined }>({});
+  const hasFetchedLocal = useRef<{ [key: string]: boolean }>({});
+
+  // Lazy persistent listeners for Firestore and Fetches for Local DB
   useEffect(() => {
-    if (activeTab === 'analytics' || activeTab === 'upload' || isQuotaExceeded) return;
+    // Local DB - Uploads
+    if (activeTab === 'manage_uploads' && !hasFetchedLocal.current.manage_uploads) {
+      setIsLoading(true);
+      fetch('/api/db/uploads')
+        .then(res => res.json())
+        .then(data => {
+            setUploads(data);
+            hasFetchedLocal.current.manage_uploads = true;
+            setIsLoading(false);
+        })
+        .catch(err => {
+            console.error("Failed to fetch uploads:", err);
+            setIsLoading(false);
+        });
+    }
 
-    setIsLoading(true);
+    // Local DB - Announcements
+    if (activeTab === 'announcements' && !hasFetchedLocal.current.announcements) {
+      setIsLoading(true);
+      fetch('/api/db/announcements')
+        .then(res => res.json())
+        .then(data => {
+            setAnnouncements(data);
+            hasFetchedLocal.current.announcements = true;
+            setIsLoading(false);
+        })
+        .catch(err => {
+            console.error("Failed to fetch announcements:", err);
+            setIsLoading(false);
+        });
+    }
 
-    try {
-      if (activeTab === 'manage_uploads') {
-        const fetchUploads = async () => {
-          try {
-            const q = query(collection(db, 'uploads'), orderBy('createdAt', 'desc'), limit(1000));
-            const snapshot = await getDocs(q);
-            setUploads(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as any[]);
+    // Local DB - Suggestions
+    if (activeTab === 'suggestions' && !hasFetchedLocal.current.suggestions) {
+      setIsLoading(true);
+      fetch('/api/db/suggestions')
+        .then(res => res.json())
+        .then(data => {
+            setSuggestions(data);
+            hasFetchedLocal.current.suggestions = true;
             setIsLoading(false);
-          } catch(err) {
-            handleFirestoreError(err, OperationType.LIST, 'uploads');
+        })
+        .catch(err => {
+            console.error("Failed to fetch suggestions:", err);
             setIsLoading(false);
-          }
-        };
-        fetchUploads();
-      } else if (activeTab === 'announcements') {
-        const fetchAnnouncements = async () => {
-          try {
-            const q = query(collection(db, 'site_announcements'), orderBy('createdAt', 'desc'), limit(50));
-            const snapshot = await getDocs(q);
-            setAnnouncements(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Announcement[]);
-            setIsLoading(false);
-          } catch(err) {
-            handleFirestoreError(err, OperationType.LIST, 'site_announcements');
-            setIsLoading(false);
-          }
-        };
-        fetchAnnouncements();
-      } else if (activeTab === 'suggestions') {
-        const fetchSuggestions = async () => {
-          try {
-            const q = query(collection(db, 'suggestions'), orderBy('createdAt', 'desc'), limit(100));
-            const snapshot = await getDocs(q);
-            setSuggestions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Suggestion[]);
-            setIsLoading(false);
-          } catch(err) {
-            handleFirestoreError(err, OperationType.LIST, 'suggestions');
-            setIsLoading(false);
-          }
-        };
-        fetchSuggestions();
-      } else if (activeTab === 'admins') {
-        const fetchAdmins = async () => {
-          try {
-            const q = query(collection(db, 'allowed_admins'), orderBy('createdAt', 'desc'), limit(100));
-            const snapshot = await getDocs(q);
-            setAllowedAdmins(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AllowedAdmin[]);
-            setIsLoading(false);
-          } catch(err) {
-            handleFirestoreError(err, OperationType.LIST, 'allowed_admins');
-            setIsLoading(false);
-          }
-        };
-        fetchAdmins();
-      } else if (activeTab === 'system') {
-        const fetchSystem = async () => {
-          try {
-            const snapshot = await getDoc(doc(db, 'system', 'status'));
-            if (snapshot.exists()) setIsUpdating(snapshot.data().updating === true);
-            setIsLoading(false);
-          } catch(err) {
-            handleFirestoreError(err, OperationType.GET, 'system/status');
-            setIsLoading(false);
-          }
-        };
-        fetchSystem();
+        });
+    }
+
+    // Firestore - Allowed Admins
+    if (activeTab === 'admins' && !isQuotaExceeded && !unsubsRef.current.admins) {
+      const q = query(collection(db, 'allowed_admins'), orderBy('createdAt', 'desc'), limit(100));
+      unsubsRef.current.admins = onSnapshot(q, (snapshot) => {
+        setAllowedAdmins(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AllowedAdmin[]);
+      }, (err) => handleFirestoreError(err, OperationType.LIST, 'allowed_admins'));
+    }
+
+    // Local DB - System Status
+    if (activeTab === 'system' && !hasFetchedLocal.current.system) {
+      fetch('/api/db/system-status')
+        .then(res => res.json())
+        .then(data => {
+            setIsUpdating(data.updating === true);
+            hasFetchedLocal.current.system = true;
+        })
+        .catch(err => console.error("Failed to fetch system status:", err));
+    }
+  }, [activeTab]);
+
+  // Global cleanup for persistent listeners when Dashboard closes
+  useEffect(() => {
+    return () => {
+      Object.values(unsubsRef.current).forEach(unsub => unsub?.());
+    };
+  }, []);
+
+  // Simplified tab effect - only sets loading initially if data is empty
+  useEffect(() => {
+    if (activeTab === 'analytics' || activeTab === 'upload') {
+      setIsLoading(false);
+      return;
+    }
+
+    const hasData = () => {
+      switch(activeTab) {
+        case 'manage_uploads': return uploads.length > 0;
+        case 'announcements': return announcements.length > 0;
+        case 'suggestions': return suggestions.length > 0;
+        case 'admins': return allowedAdmins.length > 0;
+        case 'system': return true; // System status is usually very fast
+        default: return false;
       }
-    } catch (err) {
-      if (!String(err).includes('Quota limit exceeded') && !String(err).includes('Quota exceeded')) {
-        console.error("Error setting up listeners:", err);
-      }
+    };
+
+    if (!hasData()) {
+      setIsLoading(true);
+      // Data will be filled by persistent listeners
+      const timer = setTimeout(() => setIsLoading(false), 800);
+      return () => clearTimeout(timer);
+    } else {
       setIsLoading(false);
     }
   }, [activeTab]);
@@ -191,41 +220,50 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
       return;
     }
 
-    if (isQuotaExceeded) {
-      setError('Database quota exceeded. Cannot post announcement.');
-      return;
-    }
-
     setIsSubmitting(true);
     setError(null);
     setSuccess(null);
 
     try {
-      await addDoc(collection(db, 'site_announcements'), {
-        title: newTitle,
-        content: newContent,
-        authorId: auth.currentUser?.uid,
-        createdAt: serverTimestamp(),
-        active: true
+      const response = await fetch('/api/db/announcements', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newTitle,
+          content: newContent,
+          authorId: auth.currentUser?.uid,
+          active: true
+        })
       });
-      setNewTitle('');
-      setNewContent('');
-      setSuccess('Announcement posted successfully!');
-      setTimeout(() => setSuccess(null), 3000);
+
+      if (response.ok) {
+        const newItem = await response.json();
+        setAnnouncements([newItem, ...announcements]);
+        setNewTitle('');
+        setNewContent('');
+        setSuccess('Announcement posted successfully!');
+        setTimeout(() => setSuccess(null), 3000);
+      } else {
+        throw new Error('Failed to post announcement to local DB');
+      }
     } catch (err) {
-      setError('Failed to post announcement. Check console for details.');
-      handleFirestoreError(err, OperationType.CREATE, 'site_announcements');
+      console.error(err);
+      setError('Failed to post announcement.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDeleteAnnouncement = async (id: string) => {
-    if (isQuotaExceeded) return;
     try {
-      await deleteDoc(doc(db, 'site_announcements', id));
+      const response = await fetch(`/api/db/announcements/${id}`, { method: 'DELETE' });
+      if (response.ok) {
+        setAnnouncements(announcements.filter(a => a.id !== id));
+      } else {
+        throw new Error('Failed to delete announcement');
+      }
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `site_announcements/${id}`);
+      console.error(err);
     }
   };
 
@@ -247,33 +285,45 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
   };
 
   const toggleAnnouncementStatus = async (id: string, currentStatus: boolean) => {
-    if (isQuotaExceeded) return;
     try {
-      await updateDoc(doc(db, 'site_announcements', id), {
-        active: !currentStatus
+      const response = await fetch(`/api/db/announcements/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ active: !currentStatus })
       });
+      if (response.ok) {
+        const updated = await response.json();
+        setAnnouncements(announcements.map(a => a.id === id ? updated : a));
+      }
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `site_announcements/${id}`);
+      console.error(err);
     }
   };
 
   const handleMarkSuggestionReviewed = async (id: string) => {
-    if (isQuotaExceeded) return;
     try {
-      await updateDoc(doc(db, 'suggestions', id), {
-        status: 'reviewed'
+      const response = await fetch(`/api/db/suggestions/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'reviewed' })
       });
+      if (response.ok) {
+        const updated = await response.json();
+        setSuggestions(suggestions.map(s => s.id === id ? updated : s));
+      }
     } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `suggestions/${id}`);
+      console.error(err);
     }
   };
 
   const handleDeleteSuggestion = async (id: string) => {
-    if (isQuotaExceeded) return;
     try {
-      await deleteDoc(doc(db, 'suggestions', id));
+      const response = await fetch(`/api/db/suggestions/${id}`, { method: 'DELETE' });
+      if (response.ok) {
+        setSuggestions(suggestions.filter(s => s.id !== id));
+      }
     } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, `suggestions/${id}`);
+      console.error(err);
     }
   };
 
@@ -393,18 +443,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
   };
 
   const toggleMaintenanceMode = async () => {
-    if (isQuotaExceeded) return;
+    const nextStatus = !isUpdating;
     try {
-      await setDoc(doc(db, 'system', 'status'), {
-        updating: !isUpdating,
-        updatedAt: serverTimestamp(),
-        updatedBy: auth.currentUser?.uid
-      }, { merge: true });
-      setSuccess(`Maintenance mode ${!isUpdating ? 'activated' : 'deactivated'}!`);
-      setTimeout(() => setSuccess(null), 3000);
+      const response = await fetch('/api/db/system-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          updating: nextStatus,
+          updatedAt: new Date().toISOString(),
+          updatedBy: auth.currentUser?.uid
+        })
+      });
+      if (response.ok) {
+        setIsUpdating(nextStatus);
+        setSuccess(`Maintenance mode ${nextStatus ? 'activated' : 'deactivated'}!`);
+        setTimeout(() => setSuccess(null), 3000);
+      }
     } catch (err) {
+      console.error(err);
       setError('Failed to toggle maintenance mode.');
-      handleFirestoreError(err, OperationType.UPDATE, 'system/status');
     }
   };
 
