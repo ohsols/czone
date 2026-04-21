@@ -56,6 +56,7 @@ export interface PartnerItem {
   urls?: { name: string; url: string }[];
   banner?: string;
   avatar?: string;
+  discord?: string;
 }
 
 export interface ProxyItem {
@@ -63,7 +64,7 @@ export interface ProxyItem {
   name?: string;
 }
 
-export type Category = 'home' | 'movies' | 'tv shows' | 'anime' | 'manga' | 'music' | 'proxies' | 'partners' | 'dev' | 'support' | 'donate' | 'apps' | 'browser' | 'settings' | 'games' | 'socials' | 'chat';
+export type Category = 'home' | 'movies' | 'tv shows' | 'anime' | 'manga' | 'music' | 'proxies' | 'partners' | 'dev' | 'support' | 'donate' | 'apps' | 'browser' | 'settings' | 'games' | 'socials';
 
 export interface Anime {
   title: string;

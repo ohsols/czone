@@ -881,6 +881,16 @@ export const PARTNERS_DATA: PartnerItem[] = [
     ],
     banner: "https://preview.redd.it/what-are-your-favorite-meta-knight-battle-themes-and-v0-2rludfrd5hqb1.jpg?width=640&crop=smart&auto=webp&s=9a5cf8aac407cfafbcea666f0baca6293dfa2123",
     avatar: "https://cdn.jsdelivr.net/gh/MKPlaza/MKPlaza.github.io@main/Meta_Knight_Logo.webp"
+  },
+  {
+    name: "Krypthon",
+    owner: "Veteraning",
+    url: "https://www.krypt-on.top/",
+    urls: [
+      { name: "Website", url: "https://www.krypt-on.top/" }
+    ],
+    discord: "https://discord.gg/fatQjmW6qY",
+    avatar: "https://cdn.discordapp.com/icons/1474754840029823169/a_dd5f454a3a8995d76c2dc159a725a635.gif?size=1024"
   }
 ];
 

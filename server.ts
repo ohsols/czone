@@ -17,11 +17,43 @@ const __dirname = path.dirname(__filename);
 const uploadDir = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`)
-});
-const upload = multer({ storage });
+// DB Setup
+const DB_DIR = path.join(process.cwd(), 'db');
+if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR);
+
+function getDbPath(collection: string) {
+  return path.join(DB_DIR, `${collection}.json`);
+}
+
+function readDb(collection: string) {
+  const p = getDbPath(collection);
+  if (!fs.existsSync(p)) return [];
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf-8'));
+  } catch (e) {
+    return [];
+  }
+}
+
+function writeDb(collection: string, data: any) {
+  const p = getDbPath(collection);
+  fs.writeFileSync(p, JSON.stringify(data, null, 2));
+}
+
+function readSingleDb(collection: string) {
+  const p = getDbPath(collection);
+  if (!fs.existsSync(p)) return {};
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf-8'));
+  } catch (e) {
+    return {};
+  }
+}
+
+function writeSingleDb(collection: string, data: any) {
+  const p = getDbPath(collection);
+  fs.writeFileSync(p, JSON.stringify(data, null, 2));
+}
 
 dotenv.config();
 
@@ -40,9 +72,6 @@ async function initYTMusic() {
 
 app.set('trust proxy', 1);
 
-// In-memory store
-const MAX_HISTORY = 3000;
-
 app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
@@ -60,7 +89,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// --------------------------------------------------------------------------
 // API ROUTES START
 // --------------------------------------------------------------------------
 
@@ -68,6 +96,76 @@ app.use((req, res, next) => {
 app.get('/api/health', (req, res) => {
   console.log('[Server] Health check requested');
   res.json({ status: 'ok', time: new Date().toISOString(), env: process.env.NODE_ENV });
+});
+
+// Local DB API Routes
+app.get('/api/db/uploads', (req, res) => {
+  const data = readDb('uploads');
+  console.log(`[DB] GET uploads - returning ${data.length} items`);
+  res.json(data);
+});
+
+app.post('/api/db/uploads', (req, res) => {
+  console.log('[DB] POST upload - received:', req.body.title);
+  const uploads = readDb('uploads');
+  const newItem = {
+    id: Date.now().toString(),
+    ...req.body,
+    createdAt: new Date().toISOString()
+  };
+  uploads.unshift(newItem);
+  writeDb('uploads', uploads);
+  console.log('[DB] POST upload - success');
+  res.json(newItem);
+});
+
+app.delete('/api/db/uploads/:id', (req, res) => {
+  const { id } = req.params;
+  const uploads = readDb('uploads');
+  const filtered = uploads.filter((u: any) => u.id !== id);
+  writeDb('uploads', filtered);
+  res.json({ success: true });
+});
+
+app.get('/api/db/suggestions', (req, res) => {
+  res.json(readDb('suggestions'));
+});
+
+app.post('/api/db/suggestions', (req, res) => {
+  const suggestions = readDb('suggestions');
+  const newItem = {
+    id: Date.now().toString(),
+    ...req.body,
+    createdAt: new Date().toISOString()
+  };
+  suggestions.unshift(newItem);
+  writeDb('suggestions', suggestions);
+  res.json(newItem);
+});
+
+app.get('/api/db/system-status', (req, res) => {
+  res.json(readSingleDb('system-status'));
+});
+
+app.post('/api/db/system-status', (req, res) => {
+  writeSingleDb('system-status', req.body);
+  res.json({ success: true });
+});
+
+app.get('/api/db/announcements', (req, res) => {
+  res.json(readDb('announcements'));
+});
+
+app.post('/api/db/announcements', (req, res) => {
+  const items = readDb('announcements');
+  const newItem = {
+    id: Date.now().toString(),
+    ...req.body,
+    createdAt: new Date().toISOString()
+  };
+  items.unshift(newItem);
+  writeDb('announcements', items);
+  res.json(newItem);
 });
 
 import https from 'https';

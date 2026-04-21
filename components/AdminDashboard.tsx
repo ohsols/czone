@@ -10,17 +10,6 @@ interface User {
   email: string | null;
   displayName: string | null;
   role: 'admin' | 'co-owner' | 'owner' | 'user' | 'donator' | 'tester';
-  banned?: boolean;
-  createdAt?: Timestamp;
-}
-
-interface Appeal {
-  id: string;
-  userId: string;
-  userEmail: string;
-  reason: string;
-  status: 'pending' | 'approved' | 'denied';
-  createdAt: Timestamp;
 }
 
 interface Announcement {
@@ -71,155 +60,50 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
     }
     setIsSubmitting(true);
     try {
-      await addDoc(collection(db, 'uploads'), {
-        title: uploadTitle,
-        type: uploadType,
-        imageLink: imageLink,
-        driveLink: driveLink,
-        uploadedBy: auth.currentUser?.email || 'Unknown Admin',
-        createdAt: serverTimestamp()
+      const response = await fetch('/api/db/uploads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: uploadTitle,
+          type: uploadType,
+          imageLink: imageLink,
+          driveLink: driveLink,
+          uploadedBy: auth.currentUser?.email || 'Unknown Admin'
+        })
       });
-      
-      setUploadSuccess('Content added successfully!');
-      setUploadTitle('');
-      setImageLink('');
-      setDriveLink('');
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      setTimeout(() => setUploadSuccess(''), 3000);
+
+      if (response.ok) {
+        const newItem = await response.json();
+        setUploads([newItem, ...uploads]);
+        setUploadSuccess('Content added successfully!');
+        setUploadTitle('');
+        setImageLink('');
+        setDriveLink('');
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        setTimeout(() => setUploadSuccess(''), 3000);
+      } else {
+        throw new Error('Failed to add content to local DB');
+      }
     } catch (err) {
       setError('Failed to log content.');
-      handleFirestoreError(err, OperationType.CREATE, 'uploads');
+      console.error(err);
     } finally {
       setIsSubmitting(false);
     }
   };
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [appeals, setAppeals] = useState<Appeal[]>([]);
   const [allowedAdmins, setAllowedAdmins] = useState<AllowedAdmin[]>([]);
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isForceAdding, setIsForceAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'announcements' | 'suggestions' | 'users' | 'admins' | 'analytics' | 'appeals' | 'banned' | 'upload' | 'manage_uploads' | 'system'>('announcements');
+  const [activeTab, setActiveTab] = useState<'announcements' | 'suggestions' | 'admins' | 'analytics' | 'upload' | 'manage_uploads' | 'system'>('announcements');
   const [isLoading, setIsLoading] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [suggestionFilter, setSuggestionFilter] = useState<'all' | 'pending' | 'reviewed'>('all');
-  const [appealFilter, setAppealFilter] = useState<'all' | 'pending' | 'approved' | 'denied'>('all');
-  const [userSearchQuery, setUserSearchQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'co-owner' | 'owner' | 'user' | 'donator' | 'tester'>('all');
   const [adminSearchQuery, setAdminSearchQuery] = useState('');
-
-  const handleForceAddUser = async () => {
-    if (!userSearchQuery.trim() || isForceAdding || isQuotaExceeded) return;
-    const email = userSearchQuery.trim().toLowerCase();
-    if (!email.includes('@')) {
-      setError('Please enter a valid email to force-add.');
-      return;
-    }
-    
-    setIsForceAdding(true);
-    try {
-      // Generate a temporary UID or use email as ID if we don't have one
-      // In Firebase, we usually need the actual UID from Auth, but we can create a placeholder
-      // document in the 'users' collection using a hash of the email or just a random ID.
-      // However, it's better to use a random ID and store the email.
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('email', '==', email));
-      const snap = await getDocs(q);
-      
-      if (!snap.empty) {
-        setSuccess('User already exists in database.');
-        setTimeout(() => setSuccess(null), 3000);
-        return;
-      }
-
-      const newDoc = await addDoc(usersRef, {
-        email: email,
-        role: 'user',
-        displayName: email.split('@')[0],
-        createdAt: serverTimestamp(),
-        isPlaceholder: true // Mark as manually added
-      });
-
-      setSuccess(`Created placeholder record for ${email}`);
-      handleSearchUser(); // Refresh search
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      setError('Failed to force-add user.');
-      handleFirestoreError(err, OperationType.CREATE, 'users');
-    } finally {
-      setIsForceAdding(false);
-    }
-  };
-  const handleSearchUser = async () => {
-    if (!userSearchQuery.trim()) return;
-    setIsSearching(true);
-    try {
-      const search = userSearchQuery.trim();
-      const searchLower = search.toLowerCase();
-      const usersRef = collection(db, 'users');
-      
-      // Collect unique found documents
-      const foundDocsMap = new Map<string, any>();
-
-      // 1. Try searching by email (exact case)
-      const qEmailExact = query(usersRef, where('email', '==', search));
-      const emailSnapshotExact = await getDocs(qEmailExact);
-      emailSnapshotExact.docs.forEach(d => foundDocsMap.set(d.id, d.data()));
-      
-      // 2. Try searching by email (lowercase) if different
-      if (search !== searchLower) {
-        const qEmailLower = query(usersRef, where('email', '==', searchLower));
-        const emailSnapshotLower = await getDocs(qEmailLower);
-        emailSnapshotLower.docs.forEach(d => foundDocsMap.set(d.id, d.data()));
-      }
-      
-      // 3. Try searching by displayName (exact case)
-      const qNameExact = query(usersRef, where('displayName', '==', search));
-      const nameSnapshotExact = await getDocs(qNameExact);
-      nameSnapshotExact.docs.forEach(d => foundDocsMap.set(d.id, d.data()));
-
-      // 4. Try searching by UID
-      const docRef = doc(db, 'users', search);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        foundDocsMap.set(docSnap.id, docSnap.data());
-      }
-
-      const foundUsers: User[] = Array.from(foundDocsMap.entries()).map(([uid, data]) => ({
-        uid,
-        role: 'user',
-        ...data
-      })) as User[];
-
-      if (foundUsers.length > 0) {
-        // Add found users to the list if they aren't already there
-        setUsers(prev => {
-          const newUsers = [...prev];
-          foundUsers.forEach(fu => {
-            if (!newUsers.find(u => u.uid === fu.uid)) {
-              newUsers.unshift(fu);
-            }
-          });
-          return newUsers;
-        });
-        setSuccess(`Found ${foundUsers.length} user(s) matching "${userSearchQuery}"`);
-        setTimeout(() => setSuccess(null), 3000);
-      } else {
-        setError(`No user found matching "${userSearchQuery}"`);
-        setTimeout(() => setError(null), 3000);
-      }
-    } catch (err) {
-      handleFirestoreError(err, OperationType.GET, 'users');
-    } finally {
-      setIsSearching(false);
-    }
-  };
 
   useEffect(() => {
     if (activeTab === 'analytics' || activeTab === 'upload' || isQuotaExceeded) return;
@@ -279,33 +163,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
           }
         };
         fetchAdmins();
-      } else if (activeTab === 'users' || activeTab === 'banned') {
-        const fetchUsers = async () => {
-          try {
-            const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(2000));
-            const snapshot = await getDocs(q);
-            const fetchedUsers = snapshot.docs.map(doc => ({ uid: doc.id, role: 'user', ...doc.data() })) as User[];
-            setUsers(fetchedUsers);
-            setIsLoading(false);
-          } catch(err) {
-            handleFirestoreError(err, OperationType.LIST, 'users');
-            setIsLoading(false);
-          }
-        };
-        fetchUsers();
-      } else if (activeTab === 'appeals') {
-        const fetchAppeals = async () => {
-          try {
-            const q = query(collection(db, 'appeals'), orderBy('createdAt', 'desc'), limit(50));
-            const snapshot = await getDocs(q);
-            setAppeals(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Appeal[]);
-            setIsLoading(false);
-          } catch(err) {
-            handleFirestoreError(err, OperationType.LIST, 'appeals');
-            setIsLoading(false);
-          }
-        };
-        fetchAppeals();
       } else if (activeTab === 'system') {
         const fetchSystem = async () => {
           try {
@@ -375,13 +232,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
   const handleDeleteUpload = async (id: string) => {
     if (!window.confirm('Are you sure you want to delete this content?')) return;
     try {
-      await deleteDoc(doc(db, 'uploads', id));
-      setUploads(uploads.filter(u => u.id !== id));
-      setSuccess('Content deleted successfully!');
-      setTimeout(() => setSuccess(null), 3000);
+      const response = await fetch(`/api/db/uploads/${id}`, { method: 'DELETE' });
+      if (response.ok) {
+        setUploads(uploads.filter(u => u.id !== id));
+        setSuccess('Content deleted successfully!');
+        setTimeout(() => setSuccess(null), 3000);
+      } else {
+        throw new Error('Failed to delete content from local DB');
+      }
     } catch (err) {
+      console.error(err);
       setError('Failed to delete content.');
-      handleFirestoreError(err, OperationType.DELETE, `uploads/${id}`);
     }
   };
 
@@ -463,9 +324,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
 
   const handleUpdateUserRole = async (uid: string, newRole: 'admin' | 'co-owner' | 'owner' | 'user' | 'donator' | 'tester') => {
     if (isQuotaExceeded) return;
-    // Optimistic update
-    setUsers(prev => prev.map(u => u.uid === uid ? { ...u, role: newRole } : u));
-    
+    // Role updates still useful for admins
     try {
       console.log(`[AdminDashboard] Updating user ${uid} role to ${newRole}`);
       await updateDoc(doc(db, 'users', uid), {
@@ -476,62 +335,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
     } catch (err) {
       setError('Failed to update user role.');
       handleFirestoreError(err, OperationType.UPDATE, `users/${uid}`);
-    }
-  };
-
-  const handleToggleBan = async (uid: string, currentBanned: boolean) => {
-    if (isQuotaExceeded) return;
-    // Optimistic update
-    setUsers(prev => prev.map(u => u.uid === uid ? { ...u, banned: !currentBanned } : u));
-    
-    try {
-      console.log(`[AdminDashboard] Toggling ban for user ${uid} (current: ${currentBanned})`);
-      await updateDoc(doc(db, 'users', uid), {
-        banned: !currentBanned
-      });
-      
-      // If unbanning, also mark any pending appeals as approved
-      if (currentBanned) {
-        const pendingAppeals = appeals.filter(a => a.userId === uid && a.status === 'pending');
-        for (const appeal of pendingAppeals) {
-          await updateDoc(doc(db, 'appeals', appeal.id), { status: 'approved' });
-        }
-      }
-
-      setSuccess(`User ${!currentBanned ? 'banned' : 'unbanned'} successfully!`);
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      setError(`Failed to ${!currentBanned ? 'ban' : 'unban'} user.`);
-      handleFirestoreError(err, OperationType.UPDATE, `users/${uid}`);
-    }
-  };
-
-  const handleDeleteUser = async (uid: string) => {
-    if (!isSuperAdmin) return;
-    if (!window.confirm('Are you sure you want to PERMANENTLY delete this user? This cannot be undone.')) return;
-    
-    try {
-      console.log(`[AdminDashboard] Deleting user ${uid}`);
-      await deleteDoc(doc(db, 'users', uid));
-      setSuccess('User deleted successfully!');
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      setError('Failed to delete user.');
-      handleFirestoreError(err, OperationType.DELETE, `users/${uid}`);
-    }
-  };
-
-  const handleAppealAction = async (appealId: string, userId: string, action: 'approved' | 'denied') => {
-    try {
-      await updateDoc(doc(db, 'appeals', appealId), { status: action });
-      if (action === 'approved') {
-        await updateDoc(doc(db, 'users', userId), { banned: false });
-      }
-      setSuccess(`Appeal ${action} successfully!`);
-      setTimeout(() => setSuccess(null), 3000);
-    } catch (err) {
-      setError(`Failed to ${action} appeal.`);
-      handleFirestoreError(err, OperationType.UPDATE, `appeals/${appealId}`);
     }
   };
 
@@ -638,14 +441,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
         {[
           { id: 'announcements', icon: Megaphone, label: 'Announcements' },
           { id: 'suggestions', icon: Send, label: 'Suggestions' },
-          { id: 'appeals', icon: AlertCircle, label: 'Appeals' },
           { id: 'analytics', icon: Activity, label: 'Analytics' },
           { id: 'upload', icon: Upload, label: 'Upload' },
           { id: 'manage_uploads', icon: Database, label: 'Manage Uploads' },
           { id: 'system', icon: SettingsIcon, label: 'System' },
           ...(isSuperAdmin || isAdmin ? [
-            { id: 'users', icon: Users, label: 'User Management' },
-            { id: 'banned', icon: Ban, label: 'Banned Users' },
             { id: 'admins', icon: ShieldCheck, label: 'Manage Admins' }
           ] : [])
         ].map((tab) => (
@@ -939,242 +739,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
           </div>
         )}
 
-        {(isSuperAdmin || isAdmin) && activeTab === 'users' && (
-          <div className="space-y-4">
-            {users.length >= 10000 && (
-              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center gap-2 text-amber-500 text-[10px] font-bold uppercase tracking-widest">
-                <AlertCircle size={14} />
-                Note: Showing the maximum of 10,000 users allowed by a single Firestore query.
-              </div>
-            )}
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black uppercase tracking-widest text-neutral-500">
-                User Management 
-                <span className="ml-2 text-[10px] bg-white/5 px-2 py-0.5 rounded-full text-neutral-400">
-                  {users.length} Total
-                </span>
-              </h3>
-              {isSuperAdmin && (
-                <button onClick={handleRemoveAllAdmins} className="bg-red-500/10 text-red-500 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-red-500/20 transition-all">
-                  Remove All Admins
-                </button>
-              )}
-              <div className="flex gap-2">
-                <select 
-                  value={roleFilter}
-                  onChange={(e) => setRoleFilter(e.target.value as any)}
-                  className="bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white focus:outline-none focus:border-accent/50 transition-all cursor-pointer"
-                >
-                  <option value="all">All Roles</option>
-                  <option value="user">User</option>
-                  <option value="admin">Admin</option>
-                  <option value="co-owner">Co-Owner</option>
-                  <option value="owner">Owner</option>
-                  <option value="donator">Donator</option>
-                  <option value="tester">Tester</option>
-                </select>
-                <div className="flex gap-2 flex-1 max-w-md">
-                  <input
-                    type="text"
-                    placeholder="Search by email or UID..."
-                    value={userSearchQuery}
-                    onChange={(e) => setUserSearchQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSearchUser()}
-                    className="bg-black/20 border border-white/10 rounded-xl px-4 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-accent/50 flex-1"
-                  />
-                  <button 
-                    onClick={handleSearchUser}
-                    disabled={isSearching || !userSearchQuery.trim()}
-                    className="bg-accent text-black px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-accent/80 transition-all disabled:opacity-50"
-                  >
-                    {isSearching ? '...' : 'Search'}
-                  </button>
-                </div>
-              </div>
-            </div>
-            {users.filter(user => {
-              const search = userSearchQuery.toLowerCase();
-              const matchesSearch = !userSearchQuery || 
-                (user.email?.toLowerCase() || '').includes(search) || 
-                (user.displayName?.toLowerCase() || '').includes(search) ||
-                (user.uid.toLowerCase().includes(search));
-              const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-              const matchesBannedStatus = userSearchQuery ? true : !user.banned;
-              return matchesSearch && matchesRole && matchesBannedStatus;
-            }).length === 0 ? (
-              <div className="text-center py-12 space-y-4">
-                <div className="text-neutral-600 italic text-sm">No users found.</div>
-                {userSearchQuery && isSuperAdmin && (
-                  <div className="flex flex-col items-center gap-2">
-                    <p className="text-[10px] text-neutral-500 uppercase tracking-widest">User not in database?</p>
-                    <button 
-                      onClick={handleForceAddUser}
-                      disabled={isForceAdding}
-                      className="bg-white/5 border border-white/10 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-all disabled:opacity-50"
-                    >
-                      {isForceAdding ? 'Creating...' : `Force Add ${userSearchQuery}`}
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              users.filter(user => {
-                const search = userSearchQuery.toLowerCase();
-                const matchesSearch = !userSearchQuery || 
-                  (user.email?.toLowerCase() || '').includes(search) || 
-                  (user.displayName?.toLowerCase() || '').includes(search) ||
-                  (user.uid.toLowerCase().includes(search));
-                const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-                const matchesBannedStatus = userSearchQuery ? true : !user.banned;
-                return matchesSearch && matchesRole && matchesBannedStatus;
-              }).map((user) => (
-                <div key={user.uid} className="bg-white/5 border border-white/5 rounded-2xl p-5 flex items-center justify-between group hover:border-white/10 transition-all">
-                  <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${user.banned ? 'bg-red-500/20 text-red-500' : 'bg-accent/20 text-accent'}`}>
-                      {user.displayName?.charAt(0) || user.email?.charAt(0) || '?'}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-white">{user.displayName || 'Anonymous'}</h4>
-                        {user.banned && (
-                          <span className="bg-red-500/10 text-red-500 text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded">Banned</span>
-                        )}
-                      </div>
-                      <p className="text-xs text-neutral-400">{user.email}</p>
-                      {user.createdAt && (
-                        <p className="text-[10px] text-neutral-500 mt-1">
-                          Joined: {user.createdAt.toDate().toLocaleDateString()}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="flex flex-col items-end gap-2">
-                      <select 
-                        value={user.role}
-                        onChange={(e) => handleUpdateUserRole(user.uid, e.target.value as any)}
-                        className="bg-black/40 border border-white/10 rounded-lg px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-white focus:outline-none focus:border-accent/50 transition-all cursor-pointer"
-                        disabled={!isSuperAdmin && (user.role === 'admin' || user.role === 'owner' || user.role === 'co-owner')}
-                      >
-                        <option value="user">User</option>
-                        <option value="donator">Donator</option>
-                        <option value="tester">Tester</option>
-                        {isSuperAdmin && (
-                          <>
-                            <option value="admin">Admin</option>
-                            <option value="co-owner">Co-Owner</option>
-                            <option value="owner">Owner</option>
-                          </>
-                        )}
-                      </select>
-                      
-                      {user.uid !== 'HfjrcUIslZPCvNI3fxiQJVK1ebB3' && (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleToggleBan(user.uid, !!user.banned)}
-                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
-                              user.banned 
-                                ? 'bg-green-500/10 text-green-500 hover:bg-green-500/20' 
-                                : 'bg-red-500/10 text-red-500 hover:bg-red-500/20'
-                            }`}
-                          >
-                            {user.banned ? (
-                              <>
-                                <UserCheck size={12} />
-                                Unban
-                              </>
-                            ) : (
-                              <>
-                                <Ban size={12} />
-                                Ban User
-                              </>
-                            )}
-                          </button>
-                          
-                          {isSuperAdmin && (
-                            <button
-                              onClick={() => handleDeleteUser(user.uid)}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all bg-red-600/10 text-red-600 hover:bg-red-600/20"
-                              title="Permanently Delete Account"
-                            >
-                              <Trash2 size={12} />
-                              Delete
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-
-        {(isSuperAdmin || isAdmin) && activeTab === 'banned' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black uppercase tracking-widest text-neutral-500">Banned Users</h3>
-              <div className="flex gap-2 flex-1 max-w-md">
-                <input
-                  type="text"
-                  placeholder="Search banned users..."
-                  value={userSearchQuery}
-                  onChange={(e) => setUserSearchQuery(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSearchUser()}
-                  className="bg-black/20 border border-white/10 rounded-xl px-4 py-2 text-sm text-white placeholder:text-neutral-600 focus:outline-none focus:border-accent/50 flex-1"
-                />
-                <button 
-                  onClick={handleSearchUser}
-                  disabled={isSearching || !userSearchQuery.trim()}
-                  className="bg-accent text-black px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-accent/80 transition-all disabled:opacity-50"
-                >
-                  {isSearching ? '...' : 'Search'}
-                </button>
-              </div>
-            </div>
-            {users.filter(user => {
-              const search = userSearchQuery.toLowerCase();
-              const matchesSearch = !userSearchQuery || 
-                (user.email?.toLowerCase() || '').includes(search) || 
-                (user.displayName?.toLowerCase() || '').includes(search) ||
-                (user.uid.toLowerCase().includes(search));
-              return matchesSearch && user.banned;
-            }).length === 0 ? (
-              <div className="text-center py-12 text-neutral-600 italic text-sm">No banned users found.</div>
-            ) : (
-              users.filter(user => {
-                const search = userSearchQuery.toLowerCase();
-                const matchesSearch = !userSearchQuery || 
-                  (user.email?.toLowerCase() || '').includes(search) || 
-                  (user.displayName?.toLowerCase() || '').includes(search) ||
-                  (user.uid.toLowerCase().includes(search));
-                return matchesSearch && user.banned;
-              }).map((user) => (
-                <div key={user.uid} className="bg-white/5 border border-white/5 rounded-2xl p-5 flex items-center justify-between group hover:border-white/10 transition-all">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center text-red-500 font-bold">
-                      {user.displayName?.charAt(0) || user.email?.charAt(0) || '?'}
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-white">{user.displayName || 'Anonymous'}</h4>
-                      <p className="text-xs text-neutral-400">{user.email}</p>
-                      <p className="text-[10px] text-red-500 mt-1 font-bold uppercase tracking-widest">Banned</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleToggleBan(user.uid, !!user.banned)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all bg-green-500/10 text-green-500 hover:bg-green-500/20"
-                  >
-                    <UserCheck size={12} />
-                    Unban
-                  </button>
-                </div>
-              ))
-            )}
-          </div>
-        )}
-
         {(isSuperAdmin || isAdmin) && activeTab === 'admins' && (
           <div className="space-y-6">
             <form onSubmit={handleAddAdmin} className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
@@ -1268,67 +832,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
                 ))
               )}
             </div>
-          </div>
-        )}
-        {activeTab === 'appeals' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-black uppercase tracking-widest text-neutral-500">Ban Appeals</h3>
-              <div className="flex gap-2">
-                {(['all', 'pending', 'approved', 'denied'] as const).map(filter => (
-                  <button
-                    key={filter}
-                    onClick={() => setAppealFilter(filter)}
-                    className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
-                      appealFilter === filter ? 'bg-accent text-white' : 'bg-white/5 text-neutral-500 hover:text-white'
-                    }`}
-                  >
-                    {filter}
-                  </button>
-                ))}
-              </div>
-            </div>
-            {appeals.filter(a => appealFilter === 'all' || a.status === appealFilter).length === 0 ? (
-              <div className="text-center py-12 text-neutral-600 italic text-sm">No appeals found.</div>
-            ) : (
-              appeals.filter(a => appealFilter === 'all' || a.status === appealFilter).map((appeal) => (
-                <div key={appeal.id} className="bg-white/5 border border-white/5 rounded-2xl p-5 flex items-start justify-between group hover:border-white/10 transition-all">
-                  <div className="space-y-2 flex-1 pr-4">
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-white text-sm">{appeal.userEmail}</h4>
-                      <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${
-                        appeal.status === 'pending' ? 'bg-yellow-500/20 text-yellow-500' : 
-                        appeal.status === 'approved' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'
-                      }`}>
-                        {appeal.status}
-                      </span>
-                    </div>
-                    <p className="text-sm text-neutral-300 leading-relaxed break-words">{appeal.reason}</p>
-                    <p className="text-[9px] font-mono text-neutral-600">
-                      {appeal.createdAt?.toDate().toLocaleString() || 'Just now'}
-                    </p>
-                  </div>
-                  {appeal.status === 'pending' && (
-                    <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all shrink-0">
-                      <button 
-                        onClick={() => handleAppealAction(appeal.id, appeal.userId, 'approved')}
-                        className="p-2 rounded-lg bg-green-500/10 hover:bg-green-500/20 text-green-500 transition-colors"
-                        title="Approve Appeal (Unban)"
-                      >
-                        <UserCheck size={14} />
-                      </button>
-                      <button 
-                        onClick={() => handleAppealAction(appeal.id, appeal.userId, 'denied')}
-                        className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 transition-colors"
-                        title="Deny Appeal"
-                      >
-                        <Ban size={14} />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
           </div>
         )}
         {!isLoading && activeTab === 'system' && (

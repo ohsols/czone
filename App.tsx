@@ -16,12 +16,10 @@ import { doc, getDoc, updateDoc, onSnapshot, collection, query, orderBy, limit, 
 import AdminDashboard from './components/AdminDashboard';
 import AuthModal from './components/AuthModal';
 import SuggestionModal from './components/SuggestionModal';
-import AppealModal from './components/AppealModal';
 import MusicPlayer from './components/MusicPlayer';
-import { ChatPage } from './components/ChatPage';
 import { SiteAnnouncements } from './components/SiteAnnouncements';
 import { UpdateOverlay } from './components/UpdateOverlay';
-import { Search, X, Film, Sparkles, BookOpen, Tv, SearchX, PlayCircle, Star, Globe, Users, ExternalLink, ShieldAlert, Zap, Activity, Loader2, Book, AlertTriangle, Settings as SettingsIcon, GitCommit, ChevronDown, LayoutGrid, Gamepad2, ShieldCheck, LogOut, LogIn, Send, Music } from 'lucide-react';
+import { Search, X, Film, Sparkles, BookOpen, Tv, SearchX, PlayCircle, Star, Globe, Users, ExternalLink, ShieldAlert, Zap, Activity, Loader2, Book, AlertTriangle, Settings as SettingsIcon, GitCommit, ChevronDown, LayoutGrid, Gamepad2, ShieldCheck, LogOut, LogIn, Send, Music, MessageSquare } from 'lucide-react';
 
 const DEFAULT_LOGO = "https://lh7-rt.googleusercontent.com/sitesz/AClOY7psM7n5cC2oRAQVLVss3LsgYFKWwE-KzTjGQvDYtnnp1f1j-Szl1OH6r1pZTXpsw0t_1es0N4P9E2cBl4Oqs-lOwNJdAt3H5CiGxGZKfBTzaYq_ybiI1qd2dWXWu_GRWMqLDD_3BL9tkNhJBNJhjBuuQWyvP1B19h6v0fblyHBwfxs-94c7?key=IannGxLsV9P5UfJ0NHPqqQ";
 
@@ -196,13 +194,11 @@ const App: React.FC = () => {
   const [isUpdateLogOpen, setIsUpdateLogOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [isAppealModalOpen, setIsAppealModalOpen] = useState(false);
   const [isSuggestionModalOpen, setIsSuggestionModalOpen] = useState(false);
   const [hasOpenedUpdateLog, setHasOpenedUpdateLog] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
-  const [isBanned, setIsBanned] = useState(false);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isQuotaExceededUI, setIsQuotaExceededUI] = useState(false);
   const [showQuotaPopup, setShowQuotaPopup] = useState(false);
@@ -227,34 +223,20 @@ const App: React.FC = () => {
   useEffect(() => {
     const fetchUploads = async () => {
       try {
-        const q = query(collection(db, 'uploads'), orderBy('createdAt', 'desc'), limit(1000));
-        const snapshot = await getDocs(q);
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setUploads(data);
-      } catch (err) {
-        if (!String(err).includes('Quota limit exceeded') && !String(err).includes('Quota exceeded')) {
-          console.error("Failed to fetch uploads", err);
+        const response = await fetch('/api/db/uploads');
+        if (response.ok) {
+          const data = await response.json();
+          setUploads(data);
         }
+      } catch (err) {
+        console.error("Failed to fetch uploads from local DB", err);
       }
     };
     fetchUploads();
   }, []);
 
   useEffect(() => {
-    const handleFirestoreErrorEvent = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      const errInfo = customEvent.detail;
-      if (errInfo && errInfo.error && (errInfo.error.includes('Quota limit exceeded') || errInfo.error.includes('Quota exceeded'))) {
-        console.warn("Firebase Quota Exceeded. The free daily read/write limit for this database has been reached.");
-        setIsQuotaExceededUI(true);
-        if (!hasShownQuotaPopup) {
-          setShowQuotaPopup(true);
-        }
-      }
-    };
-
-    window.addEventListener('firestore-error', handleFirestoreErrorEvent);
-    return () => window.removeEventListener('firestore-error', handleFirestoreErrorEvent);
+    // Legacy quota handling removed as we moved to local server storage
   }, []);
 
   useEffect(() => {
@@ -303,7 +285,6 @@ const App: React.FC = () => {
         }
       } else {
         setFavorites([]);
-        setIsBanned(false);
         localStorage.removeItem('chillzone_favorites');
       }
     });
@@ -366,7 +347,6 @@ const App: React.FC = () => {
           
           setIsSuperAdmin(isSuperAdminUser);
           setIsAdmin(isSuperAdminUser || isDefaultAdmin || isAdminRole);
-          setIsBanned(data.banned === true && !isSuperAdminUser);
         }
       } catch (err) {
         handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
@@ -557,43 +537,6 @@ const App: React.FC = () => {
 
   // Check if the current link is a fallback search link
   const isSearchLink = selectedItem?.item.l?.includes('drive.google.com/drive/search');
-
-  if (isBanned) {
-    return (
-      <div className="fixed inset-0 z-[9999] bg-black flex items-center justify-center p-6 text-center">
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-md w-full bg-[#0a0a0a] border border-red-500/20 rounded-[32px] p-12 shadow-2xl shadow-red-500/10"
-        >
-          <div className="w-24 h-24 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-8 border border-red-500/20">
-            <ShieldAlert className="w-12 h-12 text-red-500" />
-          </div>
-          <h1 className="text-4xl font-black uppercase italic tracking-tighter text-white mb-4">Access Denied</h1>
-          <p className="text-neutral-400 text-sm leading-relaxed mb-8">
-            Your account has been permanently banned for violating our community guidelines and terms of service.
-          </p>
-          <div className="p-4 bg-red-500/5 border border-red-500/10 rounded-2xl mb-8">
-            <p className="text-[10px] font-black uppercase tracking-widest text-red-500/60">Protocol: Violation-403</p>
-          </div>
-          <div className="flex flex-col gap-3">
-            <button 
-              onClick={() => setIsAppealModalOpen(true)}
-              className="w-full py-4 rounded-2xl bg-accent text-white font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-accent/20"
-            >
-              Appeal Ban
-            </button>
-          </div>
-        </motion.div>
-        <AppealModal 
-          isOpen={isAppealModalOpen} 
-          onClose={() => setIsAppealModalOpen(false)} 
-          userEmail={user?.email || ''} 
-          userId={user?.uid || ''} 
-        />
-      </div>
-    );
-  }
 
   // Removed force login block
 
@@ -892,6 +835,36 @@ const App: React.FC = () => {
                           </motion.div>
                         </div>
 
+                        {/* Discord Ad Banner */}
+                        <motion.div 
+                          whileHover={{ scale: 1.02 }}
+                          className="relative w-full rounded-[40px] overflow-hidden bg-gradient-to-br from-[#5865F2]/20 to-bg border border-[#5865F2]/30 p-10 md:p-14 flex flex-col md:flex-row items-center justify-between gap-8 group"
+                        >
+                          <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-[#5865F2]/20 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/4 pointer-events-none group-hover:bg-[#5865F2]/30 transition-colors duration-700" />
+                          <div className="relative z-10 flex-1">
+                            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#5865F2]/20 text-[#5865F2] font-black text-xs uppercase tracking-widest mb-6 border border-[#5865F2]/30">
+                              <DiscordIcon size={14} /> Official Community
+                            </div>
+                            <h2 className="text-4xl md:text-5xl font-black italic uppercase tracking-tighter text-white mb-4">
+                              Join the <span className="text-[#5865F2]">Chillzone</span>
+                            </h2>
+                            <p className="text-text-secondary text-lg font-medium max-w-xl">
+                              Request new movies, get notified of fresh drops, report broken links, and chill with the community.
+                            </p>
+                          </div>
+                          <motion.a
+                            href="https://discord.gg/cuHARsXESW"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            whileHover={{ scale: 1.05, rotate: 2 }}
+                            whileTap={{ scale: 0.95 }}
+                            className="relative z-10 shrink-0 bg-[#5865F2] hover:bg-[#4752C4] text-white px-12 py-6 rounded-[24px] font-black uppercase tracking-widest text-lg italic transition-colors shadow-[0_0_40px_rgba(88,101,242,0.3)] flex items-center gap-4"
+                          >
+                            <span>Connect Now</span>
+                            <MessageSquare size={24} />
+                          </motion.a>
+                        </motion.div>
+
                         {/* Recent Discoveries */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                           {[
@@ -1186,8 +1159,6 @@ const App: React.FC = () => {
                     )}
 
                     {activeCategory === 'partners' && <Partners />}
-
-                    {activeCategory === 'chat' && <ChatPage />}
 
                     {activeCategory === 'socials' && (
                       <motion.div

@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Home, Film, Tv, Sparkles, BookOpen, Heart, Camera, Globe, Users, DollarSign, Gamepad2, LayoutGrid, Settings as SettingsIcon, Shield, Code, Music, Database, MessageSquare, ShieldCheck } from 'lucide-react';
+import { Home, Film, Tv, Sparkles, BookOpen, Heart, Camera, Globe, Users, DollarSign, Gamepad2, LayoutGrid, Settings as SettingsIcon, Shield, Code, Music, Database, ShieldCheck } from 'lucide-react';
 import { Category } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLanguage } from '../context/LanguageContext';
@@ -38,9 +38,9 @@ const Sidebar: React.FC<SidebarProps> = ({ activeCategory, logoUrl, onLogoChange
   const navItems = [
     { id: 'home' as Category, label: 'Home', icon: Home },
     { id: 'donate' as Category, label: 'Donate', icon: DollarSign },
+    { id: 'partners' as Category, label: 'Partners', icon: Users },
     { id: 'support' as Category, label: 'Devs', icon: Heart },
     { id: 'socials' as Category, label: 'Socials', icon: Globe },
-    { id: 'chat' as Category, label: 'Chat', icon: MessageSquare },
     { id: 'games' as Category, label: 'Games', icon: Gamepad2 },
     { id: 'movies' as Category, label: 'Movies', icon: Film },
     { id: 'tv shows' as Category, label: 'TV', icon: Tv },
@@ -48,7 +48,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activeCategory, logoUrl, onLogoChange
     { id: 'manga' as Category, label: 'Mangas', icon: BookOpen },
     { id: 'music' as Category, label: 'Music', icon: Music },
     { id: 'proxies' as Category, label: 'Proxies', icon: Shield },
-    { id: 'partners' as Category, label: 'Partners', icon: Users },
   ];
 
   const handleSelect = (id: Category) => {
