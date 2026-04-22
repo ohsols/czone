@@ -63,19 +63,13 @@ export const signInWithGoogle = async () => {
         handleFirestoreError(error, OperationType.WRITE, 'users');
       }
     } else {
-      // Update role if they are an admin but their role is not set to admin
+      // Update display name/photo only if needed, avoiding role update which is restricted
       const currentRole = docSnap.data().role;
       const adminEmails = ['darkfn1234567890@gmail.com', 'calabcoleman2187@gmail.com', 'raypolebobby15@gmail.com'];
       const isDefaultAdmin = adminEmails.includes(result.user.email || '') && result.user.emailVerified;
       const shouldBeAdmin = result.user.uid === 'HfjrcUIslZPCvNI3fxiQJVK1ebB3' || isAllowedAdmin || isDefaultAdmin;
       
-      if (shouldBeAdmin && currentRole !== 'admin') {
-        try {
-          await updateDoc(userDoc, { role: 'admin' });
-        } catch (error) {
-          handleFirestoreError(error, OperationType.UPDATE, 'users');
-        }
-      }
+      // Removed the restricted updateDoc(userDoc, { role: 'admin' }) 
     }
     return result.user;
   } catch (error) {
@@ -163,29 +157,7 @@ export const loginWithEmail = async (email: string, pass: string) => {
     }
     
     if (docSnap && docSnap.exists()) {
-      let isAllowedAdmin = false;
-      const userEmailLower = result.user.email?.toLowerCase();
-      if (userEmailLower) {
-        try {
-          const allowedAdminDoc = await getDoc(doc(db, 'allowed_admins', userEmailLower));
-          isAllowedAdmin = allowedAdminDoc.exists();
-        } catch (error) {
-          handleFirestoreError(error, OperationType.GET, 'allowed_admins');
-        }
-      }
-      
-      const currentRole = docSnap.data().role;
-      const adminEmails = ['darkfn1234567890@gmail.com', 'calabcoleman2187@gmail.com', 'raypolebobby15@gmail.com'];
-      const isDefaultAdmin = adminEmails.includes(result.user.email || '');
-      const shouldBeAdmin = result.user.uid === 'HfjrcUIslZPCvNI3fxiQJVK1ebB3' || isAllowedAdmin || isDefaultAdmin;
-      
-      if (shouldBeAdmin && currentRole !== 'admin') {
-        try {
-          await updateDoc(userDocRef, { role: 'admin' });
-        } catch (error) {
-          handleFirestoreError(error, OperationType.UPDATE, 'users');
-        }
-      }
+      // Role update to 'admin' is restricted and handled during initial user creation or via admin panel if available.
     }
 
     return result.user;

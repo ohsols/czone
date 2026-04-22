@@ -10,7 +10,7 @@ import { GamesHub } from './components/GamesHub';
 import { Category, LibraryItem, StaffMember, Game, FavoriteItem } from './types';
 import { MOVIES_DATA, ANIME_DATA, MANGA_DATA, TV_DATA, STAFF_DATA, PARTNERS_DATA, PROXIES_DATA } from './constants';
 import { useLanguage } from './context/LanguageContext';
-import { auth } from './firebase'; 
+import { auth, logout as firebaseLogout } from './firebase'; 
 import { onAuthStateChanged, User } from 'firebase/auth'; 
 
 import AdminDashboard from './components/AdminDashboard';
@@ -387,12 +387,16 @@ const App: React.FC = () => {
     localStorage.setItem('chillzone_custom_logo', newLogoUrl);
   };
 
-  const logout = () => {
+  const logout = async () => {
+    try {
+        await firebaseLogout();
+    } catch (e) {
+        console.error("Sign out failed", e);
+    }
     setUser(null);
     setIsAdmin(false);
     setIsSuperAdmin(false);
     localStorage.removeItem('chillzone_favorites');
-    window.location.reload();
   };
 
   const handleOpenDetails = (item: LibraryItem, category: string) => {
