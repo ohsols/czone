@@ -8,7 +8,7 @@ const app = initializeApp(firebaseConfig);
 // Try to use the named database if provided, otherwise use (default)
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
 export const auth = getAuth(app);
-setPersistence(auth, browserLocalPersistence).catch(console.error);
+// setPersistence(auth, browserLocalPersistence).catch(console.error);
 export const googleProvider = new GoogleAuthProvider();
 
 export const signInWithGoogle = async () => {

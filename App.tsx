@@ -10,8 +10,8 @@ import { GamesHub } from './components/GamesHub';
 import { Category, LibraryItem, StaffMember, Game, FavoriteItem } from './types';
 import { MOVIES_DATA, ANIME_DATA, MANGA_DATA, TV_DATA, STAFF_DATA, PARTNERS_DATA, PROXIES_DATA } from './constants';
 import { useLanguage } from './context/LanguageContext';
-// import { auth } from './firebase'; // Removed
-// import { onAuthStateChanged, User } from 'firebase/auth'; // Removed
+import { auth } from './firebase'; 
+import { onAuthStateChanged, User } from 'firebase/auth'; 
 
 import AdminDashboard from './components/AdminDashboard';
 import AuthModal from './components/AuthModal';
@@ -225,11 +225,15 @@ const App: React.FC = () => {
   useEffect(() => {
     const fetchUploads = async () => {
       try {
+        console.log("Fetching uploads...");
         const response = await fetch(`/api/db/uploads?t=${Date.now()}`, { cache: 'no-store' });
         if (response.ok) {
           const data = await response.json();
+          console.log("Uploads fetched:", data);
           // Sort locally if not sorted by server
           setUploads(data.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+        } else {
+          console.error("Failed to fetch uploads, status:", response.status);
         }
       } catch (err) {
         console.error("Failed to fetch uploads from local DB", err);
@@ -258,14 +262,21 @@ const App: React.FC = () => {
   }, [user, isAuthReady, hasOpenedUpdateLog]);
 
   useEffect(() => {
-     // Firebase removed - set auth ready locally
-     const adminEmails = ['darkfn1234567890@gmail.com', 'calabcoleman2187@gmail.com', 'raypolebobby15@gmail.com'];
-     const userEmail = 'darkfn1234567890@gmail.com'; // Hardcoded for preview
-     
-     setIsAuthReady(true);
-     setUser({ email: userEmail });
-     setIsAdmin(adminEmails.includes(userEmail));
-     setIsSuperAdmin(false);
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+        setIsAuthReady(true);
+        setUser(currentUser);
+        
+        const adminEmails = ['darkfn1234567890@gmail.com', 'calabcoleman2187@gmail.com', 'raypolebobby15@gmail.com'];
+        
+        if (currentUser && currentUser.email) {
+            setIsAdmin(adminEmails.includes(currentUser.email.toLowerCase()));
+        } else {
+            setIsAdmin(false);
+        }
+        setIsSuperAdmin(currentUser?.uid === 'HfjrcUIslZPCvNI3fxiQJVK1ebB3');
+    });
+    
+    return unsubscribe;
   }, []);
 
   useEffect(() => {

@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Plus, Trash2, Edit2, Save, AlertCircle, CheckCircle2, ShieldCheck, Users, Megaphone, Activity, Send, Check, Ban, UserCheck, Upload, Loader2, Database, Globe, Settings as SettingsIcon } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { db, auth } from '../firebase';
+import { collection, onSnapshot, query, orderBy, Timestamp, addDoc, serverTimestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 
 interface User {
   uid: string;
@@ -107,37 +109,42 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
   const hasFetchedLocal = useRef<{ [key: string]: boolean }>({});
 
   useEffect(() => {
-    // Local DB - Announcements
-    if (activeTab === 'announcements' && !hasFetchedLocal.current.announcements) {
-      setIsLoading(true);
-      fetch(`/api/db/announcements?t=${Date.now()}`, { cache: 'no-store' })
-        .then(res => res.json())
-        .then(data => {
-            setAnnouncements(data);
-            hasFetchedLocal.current.announcements = true;
-            setIsLoading(false);
-        })
-        .catch(err => {
-            console.error("Failed to fetch announcements:", err);
-            setIsLoading(false);
-        });
+    // Announcements (Firebase)
+    const announcementsQuery = query(collection(db, 'site_announcements'), orderBy('createdAt', 'desc'));
+    const unsubAnnouncements = onSnapshot(announcementsQuery, (snapshot) => {
+      setAnnouncements(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Announcement)));
+    });
+    unsubsRef.current.announcements = unsubAnnouncements;
+
+    // Suggestions (Firebase)
+    const suggestionsQuery = query(collection(db, 'suggestions'), orderBy('createdAt', 'desc'));
+    const unsubSuggestions = onSnapshot(suggestionsQuery, (snapshot) => {
+      setSuggestions(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Suggestion)));
+    });
+    unsubsRef.current.suggestions = unsubSuggestions;
+
+    // Local DB - Uploads
+    if (activeTab === 'manage_uploads' && !hasFetchedLocal.current.manage_uploads) {
+        setIsLoading(true);
+        fetch(`/api/db/uploads?t=${Date.now()}`, { cache: 'no-store' })
+            .then(res => res.json())
+            .then(data => {
+                setUploads(data);
+                hasFetchedLocal.current.manage_uploads = true;
+                setIsLoading(false);
+            })
+            .catch(err => {
+                console.error("Failed to fetch uploads:", err);
+                setIsLoading(false);
+            });
     }
 
-    // Local DB - Suggestions
-    if (activeTab === 'suggestions' && !hasFetchedLocal.current.suggestions) {
-      setIsLoading(true);
-      fetch(`/api/db/suggestions?t=${Date.now()}`, { cache: 'no-store' })
-        .then(res => res.json())
-        .then(data => {
-            setSuggestions(data);
-            hasFetchedLocal.current.suggestions = true;
-            setIsLoading(false);
-        })
-        .catch(err => {
-            console.error("Failed to fetch suggestions:", err);
-            setIsLoading(false);
-        });
-    }
+    // Admins (Firebase)
+    const adminsQuery = query(collection(db, 'allowed_admins'), orderBy('createdAt', 'desc'));
+    const unsubAdmins = onSnapshot(adminsQuery, (snapshot) => {
+      setAllowedAdmins(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AllowedAdmin)));
+    });
+    unsubsRef.current.admins = unsubAdmins;
 
     // Local DB - System Status
     if (activeTab === 'system' && !hasFetchedLocal.current.system) {
@@ -149,6 +156,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
         })
         .catch(err => console.error("Failed to fetch system status:", err));
     }
+    
+    // Cleanup
+    return () => {
+      unsubsRef.current.announcements?.();
+      unsubsRef.current.suggestions?.();
+      unsubsRef.current.admins?.();
+    };
   }, [activeTab]);
 
   // Global cleanup for persistent listeners when Dashboard closes
@@ -198,27 +212,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
     setSuccess(null);
 
     try {
-      const response = await fetch('/api/db/announcements', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: newTitle,
-          content: newContent,
-          authorId: 'admin',
-          active: true
-        })
+      await addDoc(collection(db, 'site_announcements'), {
+        title: newTitle,
+        content: newContent,
+        authorId: auth.currentUser?.uid || 'admin',
+        active: true,
+        createdAt: serverTimestamp()
       });
-
-      if (response.ok) {
-        const newItem = await response.json();
-        setAnnouncements([newItem, ...announcements]);
-        setNewTitle('');
-        setNewContent('');
-        setSuccess('Announcement posted successfully!');
-        setTimeout(() => setSuccess(null), 3000);
-      } else {
-        throw new Error('Failed to post announcement to local DB');
-      }
+      setNewTitle('');
+      setNewContent('');
+      setSuccess('Announcement posted successfully!');
+      setTimeout(() => setSuccess(null), 3000);
     } catch (err) {
       console.error(err);
       setError('Failed to post announcement.');
@@ -229,14 +233,56 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
 
   const handleDeleteAnnouncement = async (id: string) => {
     try {
-      const response = await fetch(`/api/db/announcements/${id}`, { method: 'DELETE' });
-      if (response.ok) {
-        setAnnouncements(announcements.filter(a => a.id !== id));
-      } else {
-        throw new Error('Failed to delete announcement');
-      }
+      await deleteDoc(doc(db, 'site_announcements', id));
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleAddAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAdminEmail.trim()) return;
+
+    setIsSubmitting(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      await setDoc(doc(db, 'allowed_admins', newAdminEmail.toLowerCase()), {
+        email: newAdminEmail.toLowerCase(),
+        addedBy: auth.currentUser?.uid || 'admin',
+        createdAt: serverTimestamp()
+      });
+      setNewAdminEmail('');
+      setSuccess('Admin added successfully!');
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to add admin.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteAdmin = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'allowed_admins', id));
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleRemoveAllAdmins = async () => {
+    if (!window.confirm('Are you sure you want to remove ALL admins? This cannot be undone.')) return;
+    try {
+      for (const admin of allowedAdmins) {
+          await deleteDoc(doc(db, 'allowed_admins', admin.id));
+      }
+      setSuccess('All admins removed successfully!');
+      setTimeout(() => setSuccess(null), 3000);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to remove all admins.');
     }
   };
 
@@ -259,15 +305,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
 
   const toggleAnnouncementStatus = async (id: string, currentStatus: boolean) => {
     try {
-      const response = await fetch(`/api/db/announcements/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ active: !currentStatus })
-      });
-      if (response.ok) {
-        const updated = await response.json();
-        setAnnouncements(announcements.map(a => a.id === id ? updated : a));
-      }
+      await updateDoc(doc(db, 'site_announcements', id), { active: !currentStatus });
     } catch (err) {
       console.error(err);
     }
@@ -275,15 +313,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
 
   const handleMarkSuggestionReviewed = async (id: string) => {
     try {
-      const response = await fetch(`/api/db/suggestions/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'reviewed' })
-      });
-      if (response.ok) {
-        const updated = await response.json();
-        setSuggestions(suggestions.map(s => s.id === id ? updated : s));
-      }
+      await updateDoc(doc(db, 'suggestions', id), { status: 'reviewed' });
     } catch (err) {
       console.error(err);
     }
@@ -291,10 +321,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onClose, isSuperAdmin, 
 
   const handleDeleteSuggestion = async (id: string) => {
     try {
-      const response = await fetch(`/api/db/suggestions/${id}`, { method: 'DELETE' });
-      if (response.ok) {
-        setSuggestions(suggestions.filter(s => s.id !== id));
-      }
+      await deleteDoc(doc(db, 'suggestions', id));
     } catch (err) {
       console.error(err);
     }
